@@ -8,7 +8,7 @@ import {
   Bluetooth, Printer, Zap, RefreshCw, AlertCircle, ScanLine, Radio, CheckCircle2,
   Sun, Moon, Laptop
 } from 'lucide-react';
-import { getCompanies, createCompany, getUserProfile, syncUserSettingsFromCloud } from '../api/client.js';
+import { getCompanies, createCompany, getUserProfile, syncUserSettingsFromCloud, getMyPendingInvitations, respondToInvitation } from '../api/client.js';
 import { useTheme } from '../utils/theme.js';
 import {
   isBluetoothSupported,
@@ -55,6 +55,7 @@ export default function Layout() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [addCompanyError, setAddCompanyError] = useState('');
   const [userPhoto, setUserPhoto] = useState(() => localStorage.getItem('userPhoto') || '');
+  const [pendingInvites, setPendingInvites] = useState([]);
 
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { theme, setTheme } = useTheme();
@@ -157,11 +158,13 @@ export default function Layout() {
           if (activeCompany) {
             setCompany(activeCompany);
             localStorage.setItem('userName', activeCompany.name);
+            localStorage.setItem('userCompanyRole', activeCompany.role || 'owner');
             localStorage.setItem('cached_company', JSON.stringify(activeCompany));
           } else if (list.length > 0) {
             setCompany(list[0]);
             localStorage.setItem('companyId', list[0].id);
             localStorage.setItem('userName', list[0].name);
+            localStorage.setItem('userCompanyRole', list[0].role || 'owner');
             localStorage.setItem('cached_company', JSON.stringify(list[0]));
           }
         }
@@ -170,6 +173,12 @@ export default function Layout() {
         console.error(err);
         setCompany({ name: 'Error loading profile' });
       });
+
+    getMyPendingInvitations()
+      .then(invs => {
+        if (Array.isArray(invs)) setPendingInvites(invs);
+      })
+      .catch(() => {});
 
     const refreshProfile = () => {
       getUserProfile()
@@ -196,6 +205,31 @@ export default function Layout() {
     return () => window.removeEventListener('user_profile_updated', refreshProfile);
   }, [navigate]);
 
+  const handleAcceptInviteBanner = async (token) => {
+    try {
+      const res = await respondToInvitation({ token, action: 'accept' });
+      if (res?.success) {
+        if (res.companyId) {
+          localStorage.setItem('companyId', String(res.companyId));
+          localStorage.setItem('userName', res.companyName || '');
+          localStorage.removeItem('cached_company');
+        }
+        window.location.reload();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to accept invitation');
+    }
+  };
+
+  const handleDeclineInviteBanner = async (token) => {
+    try {
+      await respondToInvitation({ token, action: 'reject' });
+      setPendingInvites(prev => prev.filter(inv => inv.token !== token));
+    } catch (err) {
+      alert(err.message || 'Failed to decline invitation');
+    }
+  };
+
   const handleSignOut = () => {
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('token');
@@ -215,6 +249,13 @@ export default function Layout() {
   const userName = localStorage.getItem('userName') || company.name || (userEmail ? userEmail.split('@')[0] : 'User');
   const isAdmin = localStorage.getItem('isAdmin') === 'true' || userEmail === 'dev.suman.ch@gmail.com';
   const userInitial = (userName.charAt(0) || 'U').toUpperCase();
+  const userCompanyRole = company?.role || localStorage.getItem('userCompanyRole') || 'owner';
+  const filteredNavItems = NAV_ITEMS.filter(item => {
+    if (userCompanyRole === 'cashier') {
+      return ['/dashboard', '/pos', '/inventory', '/parties', '/sales'].includes(item.to);
+    }
+    return true;
+  });
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f6f8fa] dark:bg-[#070b14] text-slate-800 dark:text-slate-100">
@@ -248,7 +289,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 py-4 overflow-y-auto flex flex-col gap-1 overflow-x-hidden">
-          {NAV_ITEMS.map(({ to, icon: Icon, label, rightIcon: RightIcon }) => (
+          {filteredNavItems.map(({ to, icon: Icon, label, rightIcon: RightIcon }) => (
             <NavLink
               key={to}
               to={to}
@@ -321,6 +362,7 @@ export default function Layout() {
                             if (!isActive) {
                               localStorage.setItem('companyId', comp.id);
                               localStorage.setItem('userName', comp.name);
+                              localStorage.setItem('userCompanyRole', comp.role || 'owner');
                               window.location.reload();
                             }
                             setDropdownOpen(false);
@@ -341,7 +383,18 @@ export default function Layout() {
                             </div>
                             <div className="min-w-0">
                               <p className={`text-xs uppercase truncate max-w-[140px] font-bold ${isActive ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>{comp.name}</p>
-                              {isActive && <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Active Profile</p>}
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {isActive && <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>}
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                  comp.role === 'manager'
+                                    ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300'
+                                    : comp.role === 'cashier'
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300'
+                                }`}>
+                                  {comp.role || 'owner'}
+                                </span>
+                              </div>
                             </div>
                           </div>
                           {isActive && <Check size={15} className="text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
@@ -758,6 +811,39 @@ export default function Layout() {
             </div>
           </div>
         </header>
+
+        {pendingInvites.length > 0 && (
+          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md border-b border-indigo-700/50 print:hidden">
+            <div className="flex items-center gap-2.5 text-xs">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/30 flex items-center justify-center shrink-0">
+                <UserPlus size={15} className="text-indigo-200" />
+              </div>
+              <div>
+                <span className="font-extrabold text-white">
+                  Team Invitation Received:
+                </span>{' '}
+                <span className="text-indigo-100">
+                  <strong>{pendingInvites[0].company_name}</strong> invited you to join their team as{' '}
+                  <strong className="uppercase">{pendingInvites[0].role}</strong>.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleAcceptInviteBanner(pendingInvites[0].token)}
+                className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                Accept & Join
+              </button>
+              <button
+                onClick={() => handleDeclineInviteBanner(pendingInvites[0].token)}
+                className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        )}
 
         <main className={`flex-1 ${location.pathname.startsWith('/pos') ? 'p-2 sm:p-2.5 overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto p-4 sm:p-6'} bg-[#f6f8fa] dark:bg-[#070b14] print:bg-white print:p-0 print:m-0 print:overflow-visible`}>
           <Outlet />

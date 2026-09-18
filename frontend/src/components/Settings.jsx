@@ -13,6 +13,7 @@ import {
   getConnectedPrinter, printTestReceipt
 } from '../utils/bluetoothPrinter.js';
 import { getUserSettings, saveUserSettings } from '../api/client.js';
+import StaffManagement from './StaffManagement.jsx';
 
 function CustomSelect({ value, onChange, options = [], placeholder = 'Select Option', className = '' }) {
   const [open, setOpen] = useState(false);
@@ -1115,27 +1116,31 @@ export default function Settings() {
 
     if (tabId === 'SECURITY') {
       return (
-        <div className="space-y-5 animate-fade-in">
-          <div className="pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-extrabold text-slate-900">Staff Permissions & Counter Guard</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Control what counter staff and cashiers can view</p>
-          </div>
+        <div className="space-y-6 animate-fade-in">
+          <StaffManagement />
 
-          <div className="space-y-3">
-            <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.hideCostFromCashier}
-                onChange={(e) => setSettings({ ...settings, hideCostFromCashier: e.target.checked })}
-                className="w-4 h-4 text-emerald-600 rounded mt-0.5"
-              />
-              <div>
-                <span className="text-xs font-bold text-slate-900 block">Hide Cost Price & Profit Margins from Cashiers</span>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Restricts purchase costs, supplier margins, and financial reports from non-admin counter staff.
-                </p>
-              </div>
-            </label>
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">Counter Security & Visibility Rules</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Control what counter staff and cashiers can view</p>
+            </div>
+
+            <div className="space-y-3 mt-4">
+              <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={settings.hideCostFromCashier}
+                  onChange={(e) => setSettings({ ...settings, hideCostFromCashier: e.target.checked })}
+                  className="w-4 h-4 text-emerald-600 rounded mt-0.5"
+                />
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white block">Hide Cost Price & Profit Margins from Cashiers</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Restricts purchase costs, supplier margins, and financial reports from non-admin counter staff.
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
       );

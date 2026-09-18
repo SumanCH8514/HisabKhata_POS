@@ -89,3 +89,32 @@ CREATE INDEX IF NOT EXISTS idx_fund_transactions_acc ON fund_transactions(accoun
 CREATE INDEX IF NOT EXISTS idx_item_batches_item ON item_batches(item_id);
 CREATE INDEX IF NOT EXISTS idx_stock_ledger_item ON stock_ledger(item_id);
 CREATE INDEX IF NOT EXISTS idx_party_ledger_party ON party_ledger(party_id);
+
+CREATE TABLE IF NOT EXISTS company_members (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role            TEXT NOT NULL DEFAULT 'cashier' CHECK(role IN ('owner','manager','cashier','staff')),
+  status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','suspended')),
+  created_at      TEXT DEFAULT (datetime('now')),
+  updated_at      TEXT DEFAULT (datetime('now')),
+  UNIQUE(company_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS company_invitations (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id          INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  invited_by_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email               TEXT NOT NULL,
+  role                TEXT NOT NULL DEFAULT 'cashier' CHECK(role IN ('manager','cashier','staff')),
+  token               TEXT NOT NULL UNIQUE,
+  status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected','cancelled','expired')),
+  created_at          TEXT DEFAULT (datetime('now')),
+  expires_at          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_company_members_user ON company_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_company_members_co ON company_members(company_id);
+CREATE INDEX IF NOT EXISTS idx_company_invitations_email ON company_invitations(email);
+CREATE INDEX IF NOT EXISTS idx_company_invitations_token ON company_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_company_invitations_co ON company_invitations(company_id);

@@ -22,6 +22,7 @@ import Auth from './components/Auth.jsx';
 import InvoicePrintA4 from './components/InvoicePrintA4.jsx';
 import InvoicePrintThermal from './components/InvoicePrintThermal.jsx';
 import PublicReceipt from './components/PublicReceipt.jsx';
+import JoinInvite from './components/JoinInvite.jsx';
 
 export default function App() {
   return (
@@ -30,6 +31,8 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Auth />} />
         <Route path="/signup" element={<Auth defaultIsLogin={false} />} />
+        <Route path="/join" element={<JoinInvite />} />
+        <Route path="/invite/:token" element={<JoinInvite />} />
         <Route path="/receipt/:id" element={<PublicReceipt />} />
         <Route path="/bill/:id" element={<PublicReceipt />} />
         <Route path="/invoice/:id/print" element={<InvoicePrintA4 />} />

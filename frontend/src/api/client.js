@@ -459,3 +459,14 @@ export async function getImageBase64(url) {
 
   return url;
 }
+
+export const getTeamMembers = () => request('/api/team/members');
+export const inviteTeamMember = (body) => request('/api/team/invite', { method: 'POST', body: JSON.stringify(body) });
+export const getTeamInvitations = () => request('/api/team/invitations');
+export const revokeTeamInvitation = (id) => request(`/api/team/invitations/${id}`, { method: 'DELETE' });
+export const updateTeamMember = (id, body) => request(`/api/team/members/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const removeTeamMember = (id) => request(`/api/team/members/${id}`, { method: 'DELETE' });
+export const getMyPendingInvitations = () => request('/api/team/pending-invitations');
+export const verifyInvitationToken = (token) => request(`/api/invitations/verify/${encodeURIComponent(token)}`);
+export const respondToInvitation = (body) => request('/api/invitations/respond', { method: 'POST', body: JSON.stringify(body) });
+export const signupWithInvite = (body) => request('/api/auth/signup-with-invite', { method: 'POST', body: JSON.stringify(body) });

@@ -100,7 +100,33 @@ async function runAutoMigrations(db) {
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       settings_json TEXT NOT NULL,
       updated_at TEXT DEFAULT (datetime('now'))
-    )`
+    )`,
+    `CREATE TABLE IF NOT EXISTS company_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'cashier' CHECK(role IN ('owner','manager','cashier','staff')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','suspended')),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(company_id, user_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS company_invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      invited_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'cashier' CHECK(role IN ('manager','cashier','staff')),
+      token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected','cancelled','expired')),
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_company_members_user ON company_members(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_company_members_co ON company_members(company_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_company_invitations_email ON company_invitations(email)`,
+    `CREATE INDEX IF NOT EXISTS idx_company_invitations_token ON company_invitations(token)`,
+    `CREATE INDEX IF NOT EXISTS idx_company_invitations_co ON company_invitations(company_id)`
   ];
   for (const sql of migrations) {
     try {
@@ -205,7 +231,6 @@ const adminOnlyMiddleware = async (c, next) => {
   await next();
 };
 
-// Helper to scope queries to the active company
 const companyScopeMiddleware = async (c, next) => {
   const companyId = c.req.header('X-Company-ID');
   if (!companyId) {
@@ -215,18 +240,43 @@ const companyScopeMiddleware = async (c, next) => {
   const userId = c.get('userId');
   try {
     const company = await c.env.DB.prepare(
-      `SELECT id FROM companies WHERE id = ? AND user_id = ?`
-    ).bind(companyId, userId).first();
+      `SELECT id, user_id FROM companies WHERE id = ?`
+    ).bind(companyId).first();
 
     if (!company) {
       return c.json({ error: 'Forbidden: Company not found or access denied' }, 403);
     }
 
+    let role = null;
+    if (company.user_id === userId) {
+      role = 'owner';
+    } else {
+      const member = await c.env.DB.prepare(
+        `SELECT role, status FROM company_members WHERE company_id = ? AND user_id = ?`
+      ).bind(companyId, userId).first();
+      if (member && member.status === 'active') {
+        role = member.role;
+      }
+    }
+
+    if (!role) {
+      return c.json({ error: 'Forbidden: Company not found or access denied' }, 403);
+    }
+
     c.set('companyId', company.id);
+    c.set('companyRole', role);
     await next();
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
+};
+
+const ownerOnlyMiddleware = async (c, next) => {
+  const role = c.get('companyRole');
+  if (role !== 'owner') {
+    return c.json({ error: 'Forbidden: Business owner permission required' }, 403);
+  }
+  await next();
 };
 
 // ─── Password Hashing Helpers (Web Crypto PBKDF2) ──────────────────────────────
@@ -706,7 +756,20 @@ app.post('/api/auth/login', async (c) => {
 
     const isAdmin = user.is_admin === 1;
 
-    const { results: companies } = await db.prepare(`SELECT * FROM companies WHERE user_id = ?`).bind(user.id).all();
+    const { results: ownedCompanies } = await db.prepare(`
+      SELECT c.*, 'owner' as role, 'owner' as membership_type 
+      FROM companies c 
+      WHERE c.user_id = ?
+    `).bind(user.id).all();
+
+    const { results: memberCompanies } = await db.prepare(`
+      SELECT c.*, cm.role as role, 'member' as membership_type 
+      FROM companies c 
+      JOIN company_members cm ON c.id = cm.company_id 
+      WHERE cm.user_id = ? AND cm.status = 'active'
+    `).bind(user.id).all();
+
+    const companies = [...(ownedCompanies || []), ...(memberCompanies || [])];
 
     const token = await sign({ userId: user.id, isAdmin }, c.env.JWT_SECRET || JWT_SECRET, 'HS256');
 
@@ -910,8 +973,19 @@ app.get('/api/proxy-image', async (c) => {
 app.get('/api/companies', authMiddleware, async (c) => {
   try {
     const userId = c.get('userId');
-    const { results } = await c.env.DB.prepare(`SELECT * FROM companies WHERE user_id = ?`).bind(userId).all();
-    return c.json(results);
+    const { results: owned } = await c.env.DB.prepare(
+      `SELECT c.*, 'owner' as role, 'owner' as membership_type FROM companies c WHERE c.user_id = ?`
+    ).bind(userId).all();
+
+    const { results: memberCompanies } = await c.env.DB.prepare(`
+      SELECT c.*, cm.role as role, 'member' as membership_type
+      FROM companies c
+      JOIN company_members cm ON c.id = cm.company_id
+      WHERE cm.user_id = ? AND cm.status = 'active'
+    `).bind(userId).all();
+
+    const allCompanies = [...(owned || []), ...(memberCompanies || [])];
+    return c.json(allCompanies);
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
@@ -930,7 +1004,410 @@ app.post('/api/companies', authMiddleware, async (c) => {
     `).bind(userId, name, phone || null, address || null, gst_number || null, email || null, website || null).run();
 
     const companyId = result.meta.last_row_id;
-    return c.json({ id: companyId, name, phone, address, gst_number, email, website }, 201);
+    return c.json({ id: companyId, name, phone, address, gst_number, email, website, role: 'owner', membership_type: 'owner' }, 201);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/team/members', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const currentUserRole = c.get('companyRole');
+
+    const owner = await c.env.DB.prepare(`
+      SELECT 
+        c.user_id as user_id,
+        u.email as email,
+        u.name as name,
+        u.mobile as mobile,
+        u.photo_url as photo_url,
+        'owner' as role,
+        'active' as status,
+        c.created_at as joined_at,
+        1 as is_primary_owner
+      FROM companies c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.id = ?
+    `).bind(companyId).first();
+
+    const { results: members } = await c.env.DB.prepare(`
+      SELECT 
+        cm.id as member_id,
+        cm.user_id as user_id,
+        u.email as email,
+        u.name as name,
+        u.mobile as mobile,
+        u.photo_url as photo_url,
+        cm.role as role,
+        cm.status as status,
+        cm.created_at as joined_at,
+        0 as is_primary_owner
+      FROM company_members cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.company_id = ?
+      ORDER BY cm.created_at DESC
+    `).bind(companyId).all();
+
+    const list = owner ? [owner, ...(members || [])] : (members || []);
+    return c.json({
+      members: list,
+      currentUserRole
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/team/invite', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    const email = (body.email || '').trim().toLowerCase();
+    const role = (body.role || 'cashier').trim().toLowerCase();
+
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      return c.json({ error: 'A valid email address is required' }, 400);
+    }
+
+    if (!['manager', 'cashier', 'staff'].includes(role)) {
+      return c.json({ error: 'Role must be either manager or cashier' }, 400);
+    }
+
+    const company = await c.env.DB.prepare(`SELECT id, name, user_id FROM companies WHERE id = ?`).bind(companyId).first();
+    if (!company) {
+      return c.json({ error: 'Company not found' }, 404);
+    }
+
+    const existingOwner = await c.env.DB.prepare(`
+      SELECT u.id FROM companies c JOIN users u ON c.user_id = u.id WHERE c.id = ? AND LOWER(u.email) = ?
+    `).bind(companyId, email).first();
+    if (existingOwner) {
+      return c.json({ error: 'This user is already the owner of this business' }, 400);
+    }
+
+    const existingMember = await c.env.DB.prepare(`
+      SELECT cm.id FROM company_members cm JOIN users u ON cm.user_id = u.id WHERE cm.company_id = ? AND LOWER(u.email) = ? AND cm.status = 'active'
+    `).bind(companyId, email).first();
+    if (existingMember) {
+      return c.json({ error: 'User is already an active member of this business' }, 400);
+    }
+
+    const tokenBytes = crypto.getRandomValues(new Uint8Array(24));
+    const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const existingInvite = await c.env.DB.prepare(`
+      SELECT id FROM company_invitations WHERE company_id = ? AND LOWER(email) = ? AND status = 'pending'
+    `).bind(companyId, email).first();
+
+    let invitationId;
+    if (existingInvite) {
+      await c.env.DB.prepare(`
+        UPDATE company_invitations 
+        SET role = ?, token = ?, expires_at = ?, created_at = datetime('now')
+        WHERE id = ?
+      `).bind(role, token, expiresAt, existingInvite.id).run();
+      invitationId = existingInvite.id;
+    } else {
+      const res = await c.env.DB.prepare(`
+        INSERT INTO company_invitations (company_id, invited_by_user_id, email, role, token, status, expires_at)
+        VALUES (?, ?, ?, ?, ?, 'pending', ?)
+      `).bind(companyId, userId, email, role, token, expiresAt).run();
+      invitationId = res.meta.last_row_id;
+    }
+
+    return c.json({
+      success: true,
+      invitation: {
+        id: invitationId,
+        company_id: companyId,
+        company_name: company.name,
+        email,
+        role,
+        token,
+        expires_at: expiresAt
+      }
+    }, 201);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/team/invitations', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const { results } = await c.env.DB.prepare(`
+      SELECT id, email, role, token, status, created_at, expires_at 
+      FROM company_invitations 
+      WHERE company_id = ? AND status = 'pending' AND expires_at > datetime('now')
+      ORDER BY created_at DESC
+    `).bind(companyId).all();
+
+    return c.json(results || []);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/team/invitations/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const inviteId = c.req.param('id');
+    await c.env.DB.prepare(`
+      DELETE FROM company_invitations WHERE id = ? AND company_id = ?
+    `).bind(inviteId, companyId).run();
+
+    return c.json({ success: true, message: 'Invitation revoked' });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.patch('/api/team/members/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const memberId = c.req.param('id');
+    const body = await c.req.json();
+    const { role, status } = body;
+
+    if (role && !['manager', 'cashier', 'staff'].includes(role)) {
+      return c.json({ error: 'Invalid role specified' }, 400);
+    }
+    if (status && !['active', 'suspended'].includes(status)) {
+      return c.json({ error: 'Invalid status specified' }, 400);
+    }
+
+    await c.env.DB.prepare(`
+      UPDATE company_members 
+      SET role = COALESCE(?, role), status = COALESCE(?, status), updated_at = datetime('now')
+      WHERE id = ? AND company_id = ?
+    `).bind(role || null, status || null, memberId, companyId).run();
+
+    return c.json({ success: true, message: 'Member updated successfully' });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/team/members/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const memberId = c.req.param('id');
+
+    await c.env.DB.prepare(`
+      DELETE FROM company_members WHERE id = ? AND company_id = ?
+    `).bind(memberId, companyId).run();
+
+    return c.json({ success: true, message: 'Member removed from team' });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/team/pending-invitations', authMiddleware, async (c) => {
+  try {
+    const userId = c.get('userId');
+    const user = await c.env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(userId).first();
+    if (!user || !user.email) {
+      return c.json([]);
+    }
+
+    const { results } = await c.env.DB.prepare(`
+      SELECT 
+        ci.id,
+        ci.token,
+        ci.role,
+        ci.status,
+        ci.created_at,
+        ci.expires_at,
+        c.id as company_id,
+        c.name as company_name,
+        inviter.name as inviter_name,
+        inviter.email as inviter_email
+      FROM company_invitations ci
+      JOIN companies c ON ci.company_id = c.id
+      JOIN users inviter ON ci.invited_by_user_id = inviter.id
+      WHERE LOWER(ci.email) = LOWER(?) AND ci.status = 'pending' AND ci.expires_at > datetime('now')
+      ORDER BY ci.created_at DESC
+    `).bind(user.email).all();
+
+    return c.json(results || []);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/invitations/verify/:token', async (c) => {
+  try {
+    const token = c.req.param('token');
+    if (!token) {
+      return c.json({ valid: false, error: 'Missing invitation token' }, 400);
+    }
+
+    const invite = await c.env.DB.prepare(`
+      SELECT 
+        ci.id,
+        ci.token,
+        ci.email,
+        ci.role,
+        ci.status,
+        ci.expires_at,
+        c.id as company_id,
+        c.name as company_name,
+        inviter.name as inviter_name,
+        inviter.email as inviter_email
+      FROM company_invitations ci
+      JOIN companies c ON ci.company_id = c.id
+      JOIN users inviter ON ci.invited_by_user_id = inviter.id
+      WHERE ci.token = ?
+    `).bind(token).first();
+
+    if (!invite) {
+      return c.json({ valid: false, error: 'Invitation link does not exist or has expired' }, 404);
+    }
+
+    if (invite.status !== 'pending') {
+      return c.json({ valid: false, error: `This invitation has already been ${invite.status}` }, 400);
+    }
+
+    if (new Date(invite.expires_at).getTime() < Date.now()) {
+      return c.json({ valid: false, error: 'This invitation has expired' }, 400);
+    }
+
+    return c.json({
+      valid: true,
+      invitation: invite
+    });
+  } catch (err) {
+    return c.json({ valid: false, error: err.message }, 500);
+  }
+});
+
+app.post('/api/invitations/respond', authMiddleware, async (c) => {
+  try {
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    const { token, action } = body;
+
+    if (!token || !['accept', 'reject'].includes(action)) {
+      return c.json({ error: 'Token and valid action (accept or reject) are required' }, 400);
+    }
+
+    const invite = await c.env.DB.prepare(`
+      SELECT * FROM company_invitations WHERE token = ? AND status = 'pending' AND expires_at > datetime('now')
+    `).bind(token).first();
+
+    if (!invite) {
+      return c.json({ error: 'Invitation not found or has expired' }, 404);
+    }
+
+    if (action === 'accept') {
+      await c.env.DB.prepare(`
+        INSERT INTO company_members (company_id, user_id, role, status)
+        VALUES (?, ?, ?, 'active')
+        ON CONFLICT(company_id, user_id) DO UPDATE SET
+          role = excluded.role,
+          status = 'active',
+          updated_at = datetime('now')
+      `).bind(invite.company_id, userId, invite.role).run();
+
+      await c.env.DB.prepare(`
+        UPDATE company_invitations SET status = 'accepted' WHERE id = ?
+      `).bind(invite.id).run();
+
+      const company = await c.env.DB.prepare(`SELECT id, name FROM companies WHERE id = ?`).bind(invite.company_id).first();
+
+      return c.json({
+        success: true,
+        message: 'Invitation accepted successfully',
+        companyId: invite.company_id,
+        companyName: company?.name || '',
+        role: invite.role
+      });
+    } else {
+      await c.env.DB.prepare(`
+        UPDATE company_invitations SET status = 'rejected' WHERE id = ?
+      `).bind(invite.id).run();
+
+      return c.json({
+        success: true,
+        message: 'Invitation rejected'
+      });
+    }
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/auth/signup-with-invite', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { token, name, email, password } = body;
+
+    if (!token || !email || !password) {
+      return c.json({ error: 'Token, email, and password are required' }, 400);
+    }
+
+    const invite = await c.env.DB.prepare(`
+      SELECT * FROM company_invitations WHERE token = ? AND status = 'pending' AND expires_at > datetime('now')
+    `).bind(token).first();
+
+    if (!invite) {
+      return c.json({ error: 'Invitation is invalid or has expired' }, 404);
+    }
+
+    const existing = await c.env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email.toLowerCase().trim()).first();
+    if (existing) {
+      return c.json({ error: 'An account with this email already exists. Please log in to accept the invitation.' }, 400);
+    }
+
+    const hashedPassword = await hashPassword(password);
+    const userRes = await c.env.DB.prepare(`
+      INSERT INTO users (email, password, is_admin, name, role)
+      VALUES (?, ?, 0, ?, 'staff')
+    `).bind(email.toLowerCase().trim(), hashedPassword, name || '').run();
+    const userId = userRes.meta.last_row_id;
+
+    await c.env.DB.prepare(`
+      INSERT INTO company_members (company_id, user_id, role, status)
+      VALUES (?, ?, ?, 'active')
+    `).bind(invite.company_id, userId, invite.role).run();
+
+    await c.env.DB.prepare(`
+      UPDATE company_invitations SET status = 'accepted' WHERE id = ?
+    `).bind(invite.id).run();
+
+    const company = await c.env.DB.prepare(`SELECT id, name FROM companies WHERE id = ?`).bind(invite.company_id).first();
+
+    const jwtToken = await sign({ userId, isAdmin: false }, c.env.JWT_SECRET || JWT_SECRET, 'HS256');
+
+    return c.json({
+      token: jwtToken,
+      user: {
+        id: userId,
+        email: email.toLowerCase().trim(),
+        name: name || '',
+        mobile: '',
+        photo_url: '',
+        is_admin: false,
+        role: invite.role
+      },
+      company: {
+        id: company?.id || invite.company_id,
+        name: company?.name || '',
+        role: invite.role
+      },
+      companies: [
+        {
+          id: company?.id || invite.company_id,
+          name: company?.name || '',
+          role: invite.role,
+          membership_type: 'member'
+        }
+      ]
+    }, 201);
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
