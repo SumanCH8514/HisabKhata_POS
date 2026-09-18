@@ -153,7 +153,7 @@ export default function Auth({ defaultIsLogin = true }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#060911] text-slate-900 dark:text-slate-100 font-sans selection:bg-[#4c3cce] selection:text-white overflow-x-clip max-w-full relative transition-colors duration-300 flex flex-col justify-between">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#070b14] text-slate-900 dark:text-slate-100 font-sans selection:bg-[#4c3cce] selection:text-white overflow-x-clip max-w-full relative transition-colors duration-300 flex flex-col justify-between">
 
       {showBanner && (
         <div className="relative w-full bg-gradient-to-r from-purple-100 via-orange-50 to-yellow-100 dark:from-purple-950 dark:via-slate-900 dark:to-slate-950 border-b border-purple-200/60 dark:border-purple-900/40 py-2 pl-4 pr-10 sm:px-8 text-center text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-2 transition-all">
@@ -172,7 +172,7 @@ export default function Auth({ defaultIsLogin = true }) {
         </div>
       )}
 
-      <nav className="sticky top-0 left-0 right-0 z-50 bg-white/90 dark:bg-[#060911]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 transition-all duration-300">
+      <nav className="sticky top-0 left-0 right-0 z-50 bg-white/90 dark:bg-[#070b14]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20 gap-3">
             <div className="flex items-center group cursor-pointer shrink-0 min-w-0" onClick={() => navigate('/')}>
@@ -281,7 +281,7 @@ export default function Auth({ defaultIsLogin = true }) {
         {mobileMenuOpen && (
           <>
             <div className="fixed inset-0 top-16 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
-            <div className="fixed top-16 left-0 right-0 bg-white dark:bg-[#060911] border-b border-slate-200 dark:border-slate-800 z-50 lg:hidden p-5 flex flex-col gap-4 shadow-2xl animate-fade-in">
+            <div className="fixed top-16 left-0 right-0 bg-white dark:bg-[#070b14] border-b border-slate-200 dark:border-slate-800 z-50 lg:hidden p-5 flex flex-col gap-4 shadow-2xl animate-fade-in">
               <div className="flex flex-col gap-2 pt-1 font-semibold text-sm">
                 <a href="/#features" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900">Features</a>
                 <a href="/#compliance" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900">GST Compliance</a>
@@ -310,7 +310,7 @@ export default function Auth({ defaultIsLogin = true }) {
         )}
       </nav>
 
-      <main className="w-full max-w-md mx-auto my-auto py-10 px-4 sm:px-0 animate-fade-in-up">
+      <main className="w-full max-w-md mx-auto my-auto py-10 px-4 sm:px-0 animate-fade-in-up bg-transparent">
         <div className="text-center mb-6 flex flex-col items-center">
           <div onClick={() => navigate('/')} className="cursor-pointer mb-2 hover:scale-105 transition-transform duration-300">
             <img src={logoLight} alt="HisabKhata POS" className="h-10 sm:h-12 w-auto max-w-[200px] dark:hidden block object-contain mix-blend-multiply" />
@@ -321,14 +321,14 @@ export default function Auth({ defaultIsLogin = true }) {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-5 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none transition-all duration-300">
+        <div className="bg-white dark:bg-[#0d1322] border border-slate-200/90 dark:border-slate-800/80 rounded-3xl p-5 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-2xl dark:shadow-black/60 transition-all duration-300">
 
-          <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl mb-6">
+          <div className="flex bg-slate-100 dark:bg-[#030712] p-1 rounded-2xl mb-6 border border-slate-200/60 dark:border-slate-800/80">
             <button
               type="button"
               onClick={() => { setIsLogin(true); setError(''); }}
               className={`flex-1 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${isLogin
-                ? 'bg-white dark:bg-slate-900 text-[#4c3cce] dark:text-purple-400 shadow-sm scale-[1.02]'
+                ? 'bg-white dark:bg-[#131b2e] text-[#4c3cce] dark:text-purple-300 shadow-sm scale-[1.02]'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
             >
@@ -338,7 +338,7 @@ export default function Auth({ defaultIsLogin = true }) {
               type="button"
               onClick={() => { setIsLogin(false); setError(''); }}
               className={`flex-1 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${!isLogin
-                ? 'bg-white dark:bg-slate-900 text-[#4c3cce] dark:text-purple-400 shadow-sm scale-[1.02]'
+                ? 'bg-white dark:bg-[#131b2e] text-[#4c3cce] dark:text-purple-300 shadow-sm scale-[1.02]'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
             >
@@ -408,7 +408,7 @@ export default function Auth({ defaultIsLogin = true }) {
                       value={form.name}
                       onChange={handleChange}
                       placeholder="e.g. Suman Online"
-                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-[#030712] border border-slate-200 dark:border-slate-800/80 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
                 </div>
@@ -425,7 +425,7 @@ export default function Auth({ defaultIsLogin = true }) {
                       value={form.businessName}
                       onChange={handleChange}
                       placeholder="e.g. SumanOnline Store"
-                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-[#030712] border border-slate-200 dark:border-slate-800/80 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
                 </div>
@@ -444,7 +444,7 @@ export default function Auth({ defaultIsLogin = true }) {
                   value={form.email}
                   onChange={handleChange}
                   placeholder="mail_id@sumanonline.com"
-                  className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                  className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-[#030712] border border-slate-200 dark:border-slate-800/80 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400 dark:placeholder-slate-600"
                   required
                 />
               </div>
@@ -462,7 +462,7 @@ export default function Auth({ defaultIsLogin = true }) {
                   value={form.password}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                  className="w-full pl-10 pr-10 py-3 text-sm bg-slate-50 dark:bg-[#030712] border border-slate-200 dark:border-slate-800/80 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400 dark:placeholder-slate-600"
                   required
                 />
                 <button
@@ -489,7 +489,7 @@ export default function Auth({ defaultIsLogin = true }) {
                       value={form.confirmPassword}
                       onChange={handleChange}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-[#030712] border border-slate-200 dark:border-slate-800/80 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400 dark:placeholder-slate-600"
                       required={!isLogin}
                     />
                   </div>
@@ -541,7 +541,7 @@ export default function Auth({ defaultIsLogin = true }) {
                         }
                       }}
                       placeholder="e.g. HK-4-POS"
-                      className="w-full pl-10 pr-4 py-3 text-sm font-mono uppercase bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                      className="w-full pl-10 pr-4 py-3 text-sm font-mono uppercase bg-slate-50 dark:bg-[#030712] border border-slate-200 dark:border-slate-800/80 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
                 </div>
