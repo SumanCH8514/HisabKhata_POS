@@ -26,7 +26,9 @@ export function buildInvoiceReceiptEmail({
     ? items.map(item => {
         const itemName = item.name || item.description || item.item_name || 'Item';
         const qty = item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 1);
-        const mrp = item.mrp !== undefined ? item.mrp : (item.rate || '0.00');
+        const mrp = (item.mrp !== undefined && item.mrp !== null && Number(item.mrp) > 0)
+          ? Number(item.mrp).toFixed(2)
+          : (item.total !== undefined && Number(qty) > 0 ? (Number(item.total) / Number(qty)).toFixed(2) : (item.rate || '0.00'));
         const amt = item.amt !== undefined ? item.amt : (Number(qty) * Number(item.rate || 0)).toFixed(2);
         const tax = item.tax !== undefined ? item.tax : (item.tax_amount !== undefined ? Number(item.tax_amount).toFixed(2) : '0.00');
         const total = item.total !== undefined ? Number(item.total).toFixed(2) : (Number(amt) + Number(tax)).toFixed(2);
@@ -116,8 +118,18 @@ export function buildInvoiceReceiptEmail({
     ? `Partially Paid via ${paymentMethod} (${currency}${balanceDue} remaining balance)`
     : `Paid in full via ${paymentMethod}`;
 
-  const customerEmailBlock = customerEmail ? customerEmail : '';
-  const customerPhoneBlock = customerPhone ? customerPhone : '';
+  const companyEmailBlock = companyEmail
+    ? `<a href="mailto:${companyEmail}" class="no-underline" style="color: #64748b; text-decoration: none !important; border-bottom: none !important;">${companyEmail}</a>`
+    : '';
+  const companyPhoneBlock = companyPhone
+    ? `<a href="tel:${companyPhone.replace(/\s+/g, '')}" class="no-underline" style="color: #64748b; text-decoration: none !important; border-bottom: none !important;">${companyPhone}</a>`
+    : '';
+  const customerEmailBlock = customerEmail
+    ? `<a href="mailto:${customerEmail}" class="no-underline" style="color: #64748b; text-decoration: none !important; border-bottom: none !important;">${customerEmail}</a>`
+    : '';
+  const customerPhoneBlock = customerPhone
+    ? `<a href="tel:${customerPhone.replace(/\s+/g, '')}" class="no-underline" style="color: #64748b; text-decoration: none !important; border-bottom: none !important;">${customerPhone}</a>`
+    : '';
 
   html = html
     .replace(/\{\{schemaJsonLd\}\}/g, JSON.stringify(schemaLd, null, 2))
@@ -125,10 +137,12 @@ export function buildInvoiceReceiptEmail({
     .replace(/Invoice #INV-2026-0042/g, `Invoice #${invoiceNumber || ''}`)
     .replace(/\{\{companyName\}\}/g, companyName || 'HisabKhata Store')
     .replace(/MC Electronics/g, companyName || 'HisabKhata Store')
-    .replace(/\{\{companyEmail\}\}/g, companyEmail || '')
-    .replace(/pos@sumanonline\.com/g, companyEmail || '')
-    .replace(/\{\{companyPhone\}\}/g, companyPhone || '')
-    .replace(/\+91 8641850073/g, companyPhone || '')
+    .replace(/\{\{companyEmailBlock\}\}/g, companyEmailBlock)
+    .replace(/\{\{companyEmail\}\}/g, companyEmailBlock)
+    .replace(/pos@sumanonline\.com/g, companyEmailBlock)
+    .replace(/\{\{companyPhoneBlock\}\}/g, companyPhoneBlock)
+    .replace(/\{\{companyPhone\}\}/g, companyPhoneBlock)
+    .replace(/\+91 8641850073/g, companyPhoneBlock)
     .replace(/\{\{customerName\}\}/g, customerName || 'Valued Customer')
     .replace(/Rahul Sharma/g, customerName || 'Valued Customer')
     .replace(/\{\{customerEmailBlock\}\}/g, customerEmailBlock)

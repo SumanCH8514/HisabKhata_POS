@@ -8,6 +8,27 @@
 {{schemaJsonLd}}
   </script>
   <style>
+    a, a:hover, a:active, a:visited {
+      text-decoration: none !important;
+    }
+    .text-muted a, a.no-underline, .no-underline {
+      text-decoration: none !important;
+      color: #64748b !important;
+      border: none !important;
+      outline: none !important;
+    }
+    u + #body a {
+      text-decoration: none !important;
+      color: inherit !important;
+    }
+    a[x-apple-data-detectors] {
+      color: inherit !important;
+      text-decoration: none !important;
+      font-size: inherit !important;
+      font-family: inherit !important;
+      font-weight: inherit !important;
+      line-height: inherit !important;
+    }
     @media only screen and (max-width: 600px) {
       .email-container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
       .email-body { padding: 28px 20px !important; }
@@ -25,6 +46,7 @@
       .text-heading { color: #f8fafc !important; }
       .text-body { color: #cbd5e1 !important; }
       .text-muted { color: #94a3b8 !important; }
+      .text-muted a, a.no-underline { color: #94a3b8 !important; text-decoration: none !important; }
       .tag-badge { background-color: #1f2937 !important; color: #94a3b8 !important; border-color: #374151 !important; }
       .table-header { color: #94a3b8 !important; border-color: #374151 !important; }
       .table-row { color: #f8fafc !important; border-color: #1f2937 !important; }
@@ -77,8 +99,8 @@
                   <td class="receipt-col" valign="top" style="width: 50%; padding-right: 12px;">
                     <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Billed From</span>
                     <div class="text-heading" style="font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 3px;">{{companyName}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px;">{{companyEmail}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b;">{{companyPhone}}</div>
+                    <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px;">{{companyEmailBlock}}</div>
+                    <div class="text-muted" style="font-size: 12px; color: #64748b;">{{companyPhoneBlock}}</div>
                   </td>
                   <td class="receipt-col" valign="top" style="width: 50%;">
                     <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Billed To</span>

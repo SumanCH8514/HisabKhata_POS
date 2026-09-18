@@ -97,6 +97,7 @@ async function runAutoMigrations(db) {
     `ALTER TABLE invoices ADD COLUMN due_date TEXT`,
     `ALTER TABLE invoices ADD COLUMN terms TEXT`,
     `ALTER TABLE invoices ADD COLUMN discount_amount REAL DEFAULT 0`,
+    `ALTER TABLE invoice_items ADD COLUMN mrp REAL DEFAULT 0`,
     `ALTER TABLE companies ADD COLUMN website TEXT`,
     `ALTER TABLE companies ADD COLUMN upi_id TEXT`,
     `ALTER TABLE companies ADD COLUMN letterhead_url TEXT`,
@@ -2809,13 +2810,39 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
       throw new Error('Failed to generate invoice ID from database');
     }
 
+    const itemIds = items.map(it => it.item_id).filter(Boolean);
+    const itemDbMap = {};
+    if (itemIds.length > 0) {
+      const placeholders = itemIds.map(() => '?').join(',');
+      const dbItems = await db.prepare(`SELECT id, mrp, sale_price FROM items WHERE id IN (${placeholders}) AND company_id = ?`).bind(...itemIds, companyId).all();
+      if (dbItems?.results) {
+        for (const di of dbItems.results) {
+          itemDbMap[di.id] = di;
+        }
+      }
+    }
+
     const stmts = [];
 
     for (const item of items) {
+      const dbInfo = item.item_id ? itemDbMap[item.item_id] : null;
+      const qty = Number(item.quantity) || 1;
+      const rate = Number(item.rate) || 0;
+      const taxRate = Number(item.tax_rate) || 0;
+      const grossUnit = rate * (1 + taxRate / 100);
+      const effectiveMrp = (item.mrp !== undefined && item.mrp !== null && Number(item.mrp) > 0)
+        ? Number(item.mrp)
+        : ((dbInfo && Number(dbInfo.mrp) > 0)
+            ? Number(dbInfo.mrp)
+            : ((dbInfo && Number(dbInfo.sale_price) > 0)
+                ? Number(dbInfo.sale_price)
+                : (grossUnit > 0 ? grossUnit : rate)));
+      item.mrp = effectiveMrp;
+
       stmts.push(
         db.prepare(`
-          INSERT INTO invoice_items (invoice_id, item_id, item_name, unit, quantity, rate, tax_rate)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO invoice_items (invoice_id, item_id, item_name, unit, quantity, rate, tax_rate, mrp)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           invoiceId,
           item.item_id || null,
@@ -2823,7 +2850,8 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
           item.unit || 'Pcs',
           item.quantity,
           item.rate,
-          item.tax_rate || 0
+          item.tax_rate || 0,
+          effectiveMrp
         )
       );
     }
@@ -2918,7 +2946,15 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
               const total = it.total !== undefined && it.total !== null
                 ? Number(it.total)
                 : Number((amt + taxAmt).toFixed(2));
-              const mrp = it.mrp ? Number(it.mrp) : (rate > 0 ? rate : total / (qty || 1));
+              const dbInfo = it.item_id ? itemDbMap[it.item_id] : null;
+              const grossUnit = total / (qty || 1);
+              const mrp = (it.mrp !== undefined && it.mrp !== null && Number(it.mrp) > 0)
+                ? Number(it.mrp)
+                : ((dbInfo && Number(dbInfo.mrp) > 0)
+                    ? Number(dbInfo.mrp)
+                    : ((dbInfo && Number(dbInfo.sale_price) > 0)
+                        ? Number(dbInfo.sale_price)
+                        : (grossUnit > 0 ? grossUnit : rate)));
               return {
                 name: it.item_name,
                 qty: qty,
@@ -2996,7 +3032,12 @@ app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddlewar
     }
 
     const company = await db.prepare(`SELECT name, email, phone FROM companies WHERE id = ?`).bind(companyId).first();
-    const itemsRes = await db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).bind(invoiceId).all();
+    const itemsRes = await db.prepare(`
+      SELECT ii.*, it.mrp as db_item_mrp, it.sale_price as db_sale_price
+      FROM invoice_items ii
+      LEFT JOIN items it ON ii.item_id = it.id
+      WHERE ii.invoice_id = ?
+    `).bind(invoiceId).all();
     const items = itemsRes.results || [];
     const origin = c.req.header('origin') || 'https://pos.hisabkhata.sumanonline.com';
 
@@ -3024,7 +3065,14 @@ app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddlewar
         const total = it.total !== undefined && it.total !== null
           ? Number(it.total)
           : Number((amt + taxAmt).toFixed(2));
-        const mrp = it.mrp ? Number(it.mrp) : (rate > 0 ? rate : total / (qty || 1));
+        const grossUnit = total / (qty || 1);
+        const mrp = (it.mrp !== undefined && it.mrp !== null && Number(it.mrp) > 0)
+          ? Number(it.mrp)
+          : (Number(it.db_item_mrp) > 0
+              ? Number(it.db_item_mrp)
+              : (Number(it.db_sale_price) > 0
+                  ? Number(it.db_sale_price)
+                  : (grossUnit > 0 ? grossUnit : rate)));
         return {
           name: it.item_name,
           qty: qty,

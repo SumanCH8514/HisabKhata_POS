@@ -199,6 +199,7 @@ CREATE TABLE invoice_items (
   item_name   TEXT    NOT NULL,
   unit        TEXT,
   quantity    REAL    NOT NULL DEFAULT 1,
+  mrp         REAL    NOT NULL DEFAULT 0,
   rate        REAL    NOT NULL DEFAULT 0,
   discount    REAL    NOT NULL DEFAULT 0,
   tax_rate    REAL    NOT NULL DEFAULT 0,

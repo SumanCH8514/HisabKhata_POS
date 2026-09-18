@@ -344,6 +344,7 @@ export default function POSBilling() {
         unit: item.unit || 'Pcs',
         rate: item.sale_price || 0,
         tax_rate: item.tax_rate || 0,
+        mrp: (item.mrp !== undefined && item.mrp !== null && Number(item.mrp) > 0) ? Number(item.mrp) : (item.sale_price || 0),
         quantity: qty,
         discount: 0
       }];
@@ -494,7 +495,7 @@ export default function POSBilling() {
           quantity: c.quantity,
           rate: isInclusive ? (c.rate / (1 + (c.tax_rate || 0) / 100)) : c.rate,
           tax_rate: c.tax_rate,
-          mrp: c.mrp
+          mrp: (c.mrp !== undefined && c.mrp !== null && Number(c.mrp) > 0) ? Number(c.mrp) : (c.rate || 0)
         }))
       });
 

@@ -437,7 +437,8 @@ export default function Sales() {
             item_name: selected.name,
             unit: selected.unit || 'Pcs',
             rate: selected.sale_price || 0,
-            tax_rate: selected.tax_rate || 0
+            tax_rate: selected.tax_rate || 0,
+            mrp: (selected.mrp !== undefined && selected.mrp !== null && Number(selected.mrp) > 0) ? Number(selected.mrp) : (selected.sale_price || 0)
           };
         }
       } else {
