@@ -608,10 +608,6 @@ input:-webkit-autofill:active {
   .animate-float {
     animation: floatBadge 3s ease-in-out infinite;
   }
-
-  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0;
-  }
 }
 
 @keyframes fadeIn {

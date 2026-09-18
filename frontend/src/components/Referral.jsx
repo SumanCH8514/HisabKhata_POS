@@ -62,7 +62,7 @@ export default function Referral() {
   const proMonthsEarned = totalReferred;
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-12">
+    <div className="flex flex-col gap-6 max-w-[1400px] mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#0d1322] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 sm:p-5 shadow-xs transition-all">
         <div>
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 mb-1.5">
