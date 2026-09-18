@@ -662,8 +662,71 @@ input:-webkit-autofill:active {
 }
 
 @media print {
-  body, html, #digital-receipt-card, #a4-printable-invoice, #thermal-printable-receipt, .a4-page {
+  @page {
+    size: auto;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    box-sizing: border-box !important;
+  }
+
+  html, body {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background-color: #ffffff !important;
     color: #0f172a !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  #root, #root > div, main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+  }
+
+  .overflow-x-auto, .overflow-y-auto, .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    table-layout: fixed !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  th, td {
+    border-color: #cbd5e1 !important;
   }
 }

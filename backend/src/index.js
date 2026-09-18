@@ -14,7 +14,9 @@ import {
   buildStaffInvitationEmail,
   buildTestVerificationEmail,
   buildInvoiceReceiptEmail,
-  buildWelcomeEmail
+  buildWelcomeEmail,
+  buildEmailVerificationEmail,
+  buildPasswordResetEmail
 } from './mail_templates/index.js';
 
 const app = new Hono();
@@ -740,6 +742,17 @@ app.get('/', (c) => {
 // =============================================================================
 // AUTHENTICATION
 // =============================================================================
+function generateSecureHexToken(bytesCount = 32) {
+  const bytes = crypto.getRandomValues(new Uint8Array(bytesCount));
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function generateNumericOtp(digits = 6) {
+  const min = Math.pow(10, digits - 1);
+  const max = Math.pow(10, digits) - 1;
+  return Math.floor(min + Math.random() * (max - min + 1)).toString();
+}
+
 app.post('/api/auth/signup', async (c) => {
   try {
     const body = await c.req.json();
@@ -748,23 +761,34 @@ app.post('/api/auth/signup', async (c) => {
       return c.json({ error: 'Email, password, and business name are required' }, 400);
     }
 
+    const cleanEmail = email.toLowerCase().trim();
     const db = c.env.DB;
-    const existingUser = await db.prepare(`SELECT id FROM users WHERE email = ?`).bind(email.toLowerCase().trim()).first();
+    const existingUser = await db.prepare(`SELECT id, email_verified FROM users WHERE email = ?`).bind(cleanEmail).first();
     if (existingUser) {
+      if (existingUser.email_verified === 0) {
+        return c.json({
+          error: 'An account with this email already exists but is not verified.',
+          needs_verification: true,
+          email: cleanEmail
+        }, 400);
+      }
       return c.json({ error: 'User with this email already exists' }, 400);
     }
 
     const hashedPassword = await hashPassword(password);
     const isAdmin = is_admin ? 1 : 0;
+    const vToken = generateSecureHexToken(32);
+    const vCode = generateNumericOtp(6);
 
     const userResult = await db.prepare(
-      `INSERT INTO users (email, password, is_admin) VALUES (?, ?, ?)`
-    ).bind(email.toLowerCase().trim(), hashedPassword, isAdmin).run();
+      `INSERT INTO users (email, password, is_admin, email_verified, verification_token, verification_token_expires, verification_code) 
+       VALUES (?, ?, ?, 0, ?, datetime('now', '+1 day'), ?)`
+    ).bind(cleanEmail, hashedPassword, isAdmin, vToken, vCode).run();
     const userId = userResult.meta.last_row_id;
 
     const companyResult = await db.prepare(
       `INSERT INTO companies (user_id, name, email) VALUES (?, ?, ?)`
-    ).bind(userId, businessName, email.toLowerCase().trim()).run();
+    ).bind(userId, businessName.trim(), cleanEmail).run();
     const companyId = companyResult.meta.last_row_id;
 
     if (referralCode && typeof referralCode === 'string') {
@@ -778,19 +802,171 @@ app.post('/api/auth/signup', async (c) => {
             await db.prepare(`
               INSERT INTO referrals (referrer_user_id, referral_code, referred_email, referred_user_id, referred_business_name, status, reward_status)
               VALUES (?, ?, ?, ?, ?, 'joined', '1 Month Free Pro')
-            `).bind(referrerUserId, cleanCode, email.toLowerCase().trim(), userId, businessName.trim()).run();
+            `).bind(referrerUserId, cleanCode, cleanEmail, userId, businessName.trim()).run();
           }
         }
       }
     }
 
-    const token = await sign({ userId, isAdmin: isAdmin === 1 }, c.env.JWT_SECRET || JWT_SECRET, 'HS256');
+    const verifyUrl = `https://pos.hisabkhata.sumanonline.com/verify-email?token=${vToken}`;
+    try {
+      const smtpClient = createSmtpClient(c.env);
+      if (smtpClient.isConfigured()) {
+        const mailContent = buildEmailVerificationEmail({
+          userName: businessName.trim() || cleanEmail.split('@')[0],
+          userEmail: cleanEmail,
+          verifyUrl,
+          code: vCode
+        });
+        await smtpClient.sendMail({
+          to: cleanEmail,
+          subject: mailContent.subject,
+          text: mailContent.text,
+          html: mailContent.html
+        });
+      }
+    } catch (mailErr) {}
 
     return c.json({
-      token,
-      user: { id: userId, email: email.toLowerCase().trim(), name: '', mobile: '', photo_url: '', is_admin: isAdmin === 1, role: 'owner' },
-      company: { id: companyId, name: businessName }
+      success: true,
+      needs_verification: true,
+      email: cleanEmail,
+      message: 'Account created! Please check your email to verify your address before logging in.'
     }, 201);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/auth/resend-verification', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const db = c.env.DB;
+    const user = await db.prepare(`SELECT id, email, name, email_verified FROM users WHERE email = ?`).bind(cleanEmail).first();
+    if (!user) {
+      return c.json({ success: true, message: 'If an account exists with this email, a verification email has been sent.' });
+    }
+
+    if (user.email_verified === 1) {
+      return c.json({ success: true, already_verified: true, message: 'Your email address is already verified. You can log in.' });
+    }
+
+    const vToken = generateSecureHexToken(32);
+    const vCode = generateNumericOtp(6);
+
+    await db.prepare(`
+      UPDATE users 
+      SET verification_token = ?, verification_token_expires = datetime('now', '+1 day'), verification_code = ? 
+      WHERE id = ?
+    `).bind(vToken, vCode, user.id).run();
+
+    const verifyUrl = `https://pos.hisabkhata.sumanonline.com/verify-email?token=${vToken}`;
+    try {
+      const smtpClient = createSmtpClient(c.env);
+      if (smtpClient.isConfigured()) {
+        const mailContent = buildEmailVerificationEmail({
+          userName: user.name || cleanEmail.split('@')[0],
+          userEmail: cleanEmail,
+          verifyUrl,
+          code: vCode
+        });
+        await smtpClient.sendMail({
+          to: cleanEmail,
+          subject: mailContent.subject,
+          text: mailContent.text,
+          html: mailContent.html
+        });
+      }
+    } catch (mailErr) {}
+
+    return c.json({ success: true, message: 'A fresh verification link and code have been sent to your email.' });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/auth/verify-email', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { token, code, email } = body;
+
+    if (!token && (!code || !email)) {
+      return c.json({ error: 'Verification token or email with code is required' }, 400);
+    }
+
+    const db = c.env.DB;
+    let user = null;
+
+    if (token) {
+      user = await db.prepare(`
+        SELECT * FROM users 
+        WHERE verification_token = ? AND verification_token_expires > datetime('now')
+      `).bind(token.trim()).first();
+    } else if (code && email) {
+      user = await db.prepare(`
+        SELECT * FROM users 
+        WHERE email = ? AND verification_code = ? AND verification_token_expires > datetime('now')
+      `).bind(email.toLowerCase().trim(), code.trim()).first();
+    }
+
+    if (!user) {
+      const existing = await db.prepare(`
+        SELECT id, email_verified FROM users 
+        WHERE verification_token = ? OR (email = ? AND verification_code = ?)
+      `).bind(token ? token.trim() : '', email ? email.toLowerCase().trim() : '', code ? code.trim() : '').first();
+
+      if (existing && existing.email_verified === 1) {
+        return c.json({ success: true, already_verified: true, message: 'Your email address is already verified. You can log in.' });
+      }
+
+      return c.json({ error: 'Invalid or expired verification link/code. Please request a new verification email.' }, 400);
+    }
+
+    await db.prepare(`
+      UPDATE users 
+      SET email_verified = 1, verification_token = NULL, verification_token_expires = NULL, verification_code = NULL 
+      WHERE id = ?
+    `).bind(user.id).run();
+
+    const isAdmin = user.is_admin === 1;
+
+    const { results: ownedCompanies } = await db.prepare(`
+      SELECT c.*, 'owner' as role, 'owner' as membership_type 
+      FROM companies c 
+      WHERE c.user_id = ?
+    `).bind(user.id).all();
+
+    const { results: memberCompanies } = await db.prepare(`
+      SELECT c.*, cm.role as role, 'member' as membership_type 
+      FROM companies c 
+      JOIN company_members cm ON c.id = cm.company_id 
+      WHERE cm.user_id = ? AND cm.status = 'active'
+    `).bind(user.id).all();
+
+    const companies = [...(ownedCompanies || []), ...(memberCompanies || [])];
+    const jwtToken = await sign({ userId: user.id, isAdmin }, c.env.JWT_SECRET || JWT_SECRET, 'HS256');
+
+    return c.json({
+      success: true,
+      message: 'Email verified successfully!',
+      token: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name || '',
+        mobile: user.mobile || '',
+        photo_url: user.photo_url || '',
+        is_admin: isAdmin,
+        role: user.role || 'owner'
+      },
+      companies
+    });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
@@ -799,13 +975,34 @@ app.post('/api/auth/signup', async (c) => {
 app.post('/api/auth/login', async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password } = body;
+    const { email, password, turnstileToken } = body;
     if (!email || !password) {
       return c.json({ error: 'Email and password are required' }, 400);
     }
 
+    const secretKey = c.env.TURNSTILE_SECRET_KEY || '1x0000000000000000000000000000000AA';
+    if (turnstileToken || (c.env.TURNSTILE_SECRET_KEY && c.env.TURNSTILE_SECRET_KEY !== '1x0000000000000000000000000000000AA')) {
+      try {
+        const formData = new FormData();
+        formData.append('secret', secretKey);
+        formData.append('response', turnstileToken || '');
+        const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for');
+        if (ip) formData.append('remoteip', ip);
+
+        const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          body: formData
+        });
+        const verifyResult = await verifyRes.json();
+        if (!verifyResult.success) {
+          return c.json({ error: 'Security verification failed. Please complete the captcha.' }, 400);
+        }
+      } catch (tsErr) {}
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
     const db = c.env.DB;
-    const user = await db.prepare(`SELECT * FROM users WHERE email = ?`).bind(email.toLowerCase().trim()).first();
+    const user = await db.prepare(`SELECT * FROM users WHERE email = ?`).bind(cleanEmail).first();
     if (!user) {
       return c.json({ error: 'Invalid email or password' }, 401);
     }
@@ -813,6 +1010,14 @@ app.post('/api/auth/login', async (c) => {
     const isMatch = await verifyPassword(password, user.password);
     if (!isMatch) {
       return c.json({ error: 'Invalid email or password' }, 401);
+    }
+
+    if (user.email_verified === 0) {
+      return c.json({
+        error: 'Please verify your email address before logging in.',
+        needs_verification: true,
+        email: user.email
+      }, 403);
     }
 
     const isAdmin = user.is_admin === 1;
@@ -831,7 +1036,6 @@ app.post('/api/auth/login', async (c) => {
     `).bind(user.id).all();
 
     const companies = [...(ownedCompanies || []), ...(memberCompanies || [])];
-
     const token = await sign({ userId: user.id, isAdmin }, c.env.JWT_SECRET || JWT_SECRET, 'HS256');
 
     return c.json({
@@ -846,6 +1050,116 @@ app.post('/api/auth/login', async (c) => {
         role: user.role || 'owner'
       },
       companies
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/auth/forgot-password', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+    if (!email) {
+      return c.json({ error: 'Email address is required' }, 400);
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const db = c.env.DB;
+    const user = await db.prepare(`SELECT id, email, name FROM users WHERE email = ?`).bind(cleanEmail).first();
+
+    if (user) {
+      const rToken = generateSecureHexToken(32);
+      await db.prepare(`
+        UPDATE users 
+        SET reset_password_token = ?, reset_password_expires = datetime('now', '+1 hour') 
+        WHERE id = ?
+      `).bind(rToken, user.id).run();
+
+      const resetUrl = `https://pos.hisabkhata.sumanonline.com/reset-password?token=${rToken}`;
+      try {
+        const smtpClient = createSmtpClient(c.env);
+        if (smtpClient.isConfigured()) {
+          const mailContent = buildPasswordResetEmail({
+            userName: user.name || cleanEmail.split('@')[0],
+            userEmail: cleanEmail,
+            resetUrl
+          });
+          await smtpClient.sendMail({
+            to: cleanEmail,
+            subject: mailContent.subject,
+            text: mailContent.text,
+            html: mailContent.html
+          });
+        }
+      } catch (mailErr) {}
+    }
+
+    return c.json({
+      success: true,
+      message: 'If an account exists with this email, a password reset link has been sent.'
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/auth/verify-reset-token', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { token } = body;
+    if (!token) {
+      return c.json({ valid: false, error: 'Reset token is required' }, 400);
+    }
+
+    const db = c.env.DB;
+    const user = await db.prepare(`
+      SELECT id, email FROM users 
+      WHERE reset_password_token = ? AND reset_password_expires > datetime('now')
+    `).bind(token.trim()).first();
+
+    if (!user) {
+      return c.json({ valid: false, error: 'Password reset link is invalid or has expired.' }, 400);
+    }
+
+    return c.json({ valid: true, email: user.email });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/auth/reset-password', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { token, password } = body;
+    if (!token || !password) {
+      return c.json({ error: 'Token and new password are required' }, 400);
+    }
+
+    if (typeof password !== 'string' || password.length < 6) {
+      return c.json({ error: 'Password must be at least 6 characters long' }, 400);
+    }
+
+    const db = c.env.DB;
+    const user = await db.prepare(`
+      SELECT id, email FROM users 
+      WHERE reset_password_token = ? AND reset_password_expires > datetime('now')
+    `).bind(token.trim()).first();
+
+    if (!user) {
+      return c.json({ error: 'Password reset link is invalid or has expired.' }, 400);
+    }
+
+    const hashedPassword = await hashPassword(password);
+    await db.prepare(`
+      UPDATE users 
+      SET password = ?, reset_password_token = NULL, reset_password_expires = NULL 
+      WHERE id = ?
+    `).bind(hashedPassword, user.id).run();
+
+    return c.json({
+      success: true,
+      message: 'Your password has been reset successfully. You can now log in.'
     });
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -1456,8 +1770,8 @@ app.post('/api/auth/signup-with-invite', async (c) => {
 
     const hashedPassword = await hashPassword(password);
     const userRes = await c.env.DB.prepare(`
-      INSERT INTO users (email, password, is_admin, name, role)
-      VALUES (?, ?, 0, ?, 'staff')
+      INSERT INTO users (email, password, is_admin, name, role, email_verified)
+      VALUES (?, ?, 0, ?, 'staff', 1)
     `).bind(email.toLowerCase().trim(), hashedPassword, name || '').run();
     const userId = userRes.meta.last_row_id;
 
@@ -2358,7 +2672,7 @@ app.get('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
     const offset = (page - 1) * limit;
 
     let query = `
-      SELECT i.*, p.name as party_name, p.gst_number as party_gst, p.phone as party_phone
+      SELECT i.*, p.name as party_name, p.gst_number as party_gst, p.phone as party_phone, p.email as party_email
       FROM invoices i
       LEFT JOIN parties p ON i.party_id = p.id
       WHERE i.company_id = ?
@@ -2430,7 +2744,7 @@ app.get('/api/invoices/:id', authMiddleware, companyScopeMiddleware, async (c) =
     const [invoice, items] = await c.env.DB.batch([
       c.env.DB.prepare(`
         SELECT i.*, p.name as party_name, p.phone as party_phone,
-               p.gst_number as party_gst, p.address as party_address
+               p.gst_number as party_gst, p.address as party_address, p.email as party_email
         FROM invoices i LEFT JOIN parties p ON i.party_id = p.id
         WHERE i.id = ? AND i.company_id = ?
       `).bind(id, companyId),
@@ -2473,31 +2787,47 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
     const total_amount = body.total_amount !== undefined ? Number(body.total_amount) : (subtotal + tax_amount);
     const balance_due = Math.max(0, total_amount - Number(amount_paid));
 
+    const invRes = await db.prepare(`
+      INSERT INTO invoices (company_id, type, invoice_number, date, party_id, subtotal, tax_amount, total_amount, amount_paid, payment_mode, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      companyId,
+      type.toUpperCase(),
+      invoice_number,
+      date || new Date().toISOString().slice(0, 10),
+      party_id || null,
+      subtotal,
+      tax_amount,
+      total_amount,
+      Number(amount_paid),
+      payment_mode || 'CASH',
+      notes || null
+    ).run();
+
+    const invoiceId = invRes.meta?.last_row_id;
+    if (!invoiceId) {
+      throw new Error('Failed to generate invoice ID from database');
+    }
+
     const stmts = [];
-
-    stmts.push(
-      db.prepare(`
-        INSERT INTO invoices (company_id, type, invoice_number, date, party_id, subtotal, tax_amount, total_amount, amount_paid, payment_mode, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(companyId, type.toUpperCase(), invoice_number, date || new Date().toISOString().slice(0, 10),
-        party_id || null, subtotal, tax_amount, total_amount, Number(amount_paid), payment_mode || 'CASH', notes || null)
-    );
-
-    // 2️⃣ Insert line items (after getting invoice id via last_insert_rowid trick)
-    const lastIdResult = await db.prepare(`SELECT MAX(id) as maxId FROM invoices`).first();
-    const expectedInvoiceId = (lastIdResult?.maxId ?? 0) + 1;
 
     for (const item of items) {
       stmts.push(
         db.prepare(`
           INSERT INTO invoice_items (invoice_id, item_id, item_name, unit, quantity, rate, tax_rate)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).bind(expectedInvoiceId, item.item_id || null, item.item_name,
-          item.unit || 'Pcs', item.quantity, item.rate, item.tax_rate || 0)
+        `).bind(
+          invoiceId,
+          item.item_id || null,
+          item.item_name,
+          item.unit || 'Pcs',
+          item.quantity,
+          item.rate,
+          item.tax_rate || 0
+        )
       );
     }
 
-    // 3️⃣ Update stock (skip for QUOTATION)
     if (type.toUpperCase() !== 'QUOTATION') {
       for (const item of items) {
         if (!item.item_id) continue;
@@ -2511,7 +2841,6 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
       }
     }
 
-    // 4️⃣ Update party balance
     if (party_id && balance_due !== 0 && type.toUpperCase() !== 'QUOTATION') {
       const balanceDelta = type.toUpperCase() === 'SALES' ? balance_due : -balance_due;
       stmts.push(
@@ -2522,16 +2851,216 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
       );
     }
 
-    // Execute all as a batch
-    await db.batch(stmts);
+    try {
+      if (stmts.length > 0) {
+        await db.batch(stmts);
+      }
+    } catch (batchErr) {
+      await db.prepare(`DELETE FROM invoices WHERE id = ? AND company_id = ?`).bind(invoiceId, companyId).run().catch(() => {});
+      throw batchErr;
+    }
+
+    let recipientEmail = (body.customer_email || body.email || '').trim();
+    let customerName = (body.customer_name || '').trim();
+    let customerPhone = (body.customer_phone || '').trim();
+
+    if (party_id) {
+      const party = await db.prepare(`SELECT name, email, phone FROM parties WHERE id = ? AND company_id = ?`).bind(party_id, companyId).first();
+      if (party) {
+        const isCustomer = party.type === 'CUSTOMER' || type.toUpperCase() !== 'PURCHASE' || Boolean(body.customer_email);
+        if (isCustomer) {
+          if (!recipientEmail && party.email) {
+            recipientEmail = party.email.trim();
+          }
+          if (!customerName && party.name) {
+            customerName = party.name.trim();
+          }
+          if (!customerPhone && party.phone) {
+            customerPhone = party.phone.trim();
+          }
+          if (recipientEmail && (!party.email || !party.email.trim())) {
+            await db.prepare(`UPDATE parties SET email = ?, updated_at = datetime('now') WHERE id = ? AND company_id = ?`).bind(recipientEmail, party_id, companyId).run().catch(() => {});
+          }
+        }
+      }
+    }
+
+    let emailSent = false;
+    let emailError = null;
+
+    if (recipientEmail && (type.toUpperCase() !== 'PURCHASE' || body.customer_email) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      try {
+        const mailer = await resolveSmtpClient(c.env, db, companyId);
+        if (mailer.isConfigured()) {
+          const company = await db.prepare(`SELECT name, email, phone FROM companies WHERE id = ?`).bind(companyId).first();
+          const origin = c.req.header('origin') || 'https://pos.hisabkhata.sumanonline.com';
+          const emailData = buildInvoiceReceiptEmail({
+            companyName: company?.name || 'HisabKhata Store',
+            companyEmail: company?.email || mailer.fromEmail || '',
+            companyPhone: company?.phone || '',
+            invoiceNumber: invoice_number,
+            invoiceDate: date || new Date().toISOString().slice(0, 10),
+            customerName: customerName || 'Valued Customer',
+            customerPhone: customerPhone || '',
+            customerEmail: recipientEmail,
+            receiptUrl: `${origin}/receipt/${encodeURIComponent(invoice_number)}`,
+            paymentMethod: payment_mode || 'CASH',
+            items: items.map(it => {
+              const qty = Number(it.quantity) || 1;
+              const rate = Number(it.rate) || 0;
+              const discount = Number(it.discount) || 0;
+              const netRate = rate - discount;
+              const amt = Number((qty * netRate).toFixed(2));
+              const taxRate = Number(it.tax_rate) || 0;
+              const taxAmt = it.tax_amount !== undefined && it.tax_amount !== null
+                ? Number(it.tax_amount)
+                : Number((amt * taxRate / 100).toFixed(2));
+              const total = it.total !== undefined && it.total !== null
+                ? Number(it.total)
+                : Number((amt + taxAmt).toFixed(2));
+              const mrp = it.mrp ? Number(it.mrp) : (rate > 0 ? rate : total / (qty || 1));
+              return {
+                name: it.item_name,
+                qty: qty,
+                mrp: mrp.toFixed(2),
+                rate: rate.toFixed(2),
+                amt: amt.toFixed(2),
+                tax: taxAmt.toFixed(2),
+                total: total.toFixed(2)
+              };
+            }),
+            subtotal: Number(subtotal).toFixed(2),
+            taxTotal: Number(tax_amount).toFixed(2),
+            grandTotal: Number(total_amount).toFixed(2),
+            paidAmount: Number(amount_paid).toFixed(2),
+            balanceDue: Number(balance_due).toFixed(2),
+            currency: '₹'
+          });
+
+          await mailer.sendMail({
+            to: recipientEmail,
+            subject: emailData.subject,
+            html: emailData.html,
+            text: emailData.text,
+            from: mailer.fromEmail,
+            fromName: company?.name || mailer.fromName
+          });
+          emailSent = true;
+        } else {
+          emailError = 'SMTP is not configured';
+        }
+      } catch (mailErr) {
+        emailError = mailErr.message || 'Failed to dispatch email';
+      }
+    }
 
     return c.json({
       success: true,
-      invoice_id: expectedInvoiceId,
+      invoice_id: invoiceId,
       invoice_number,
       total_amount,
       balance_due,
+      email_sent: emailSent,
+      email_error: emailError,
+      recipient_email: recipientEmail || null
     }, 201);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const companyId = c.get('companyId');
+    const invoiceId = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+
+    const invoice = await db.prepare(`
+      SELECT i.*, p.name as party_name, p.email as party_email, p.phone as party_phone
+      FROM invoices i
+      LEFT JOIN parties p ON i.party_id = p.id
+      WHERE i.id = ? AND i.company_id = ?
+    `).bind(invoiceId, companyId).first();
+
+    if (!invoice) return c.json({ error: 'Invoice not found' }, 404);
+
+    const recipientEmail = (body.email || body.to || invoice.party_email || '').trim();
+    if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      return c.json({ error: 'A valid recipient email address is required' }, 400);
+    }
+
+    const mailer = await resolveSmtpClient(c.env, db, companyId);
+    if (!mailer.isConfigured()) {
+      return c.json({ error: 'SMTP is not configured. Please configure SMTP in Settings > SMTP Configurations.' }, 400);
+    }
+
+    const company = await db.prepare(`SELECT name, email, phone FROM companies WHERE id = ?`).bind(companyId).first();
+    const itemsRes = await db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).bind(invoiceId).all();
+    const items = itemsRes.results || [];
+    const origin = c.req.header('origin') || 'https://pos.hisabkhata.sumanonline.com';
+
+    const emailData = buildInvoiceReceiptEmail({
+      companyName: company?.name || 'HisabKhata Store',
+      companyEmail: company?.email || mailer.fromEmail || '',
+      companyPhone: company?.phone || '',
+      invoiceNumber: invoice.invoice_number,
+      invoiceDate: invoice.date,
+      customerName: invoice.party_name || body.customer_name || 'Valued Customer',
+      customerPhone: invoice.party_phone || '',
+      customerEmail: recipientEmail,
+      receiptUrl: `${origin}/receipt/${encodeURIComponent(invoice.invoice_number)}`,
+      paymentMethod: invoice.payment_mode || 'CASH',
+      items: items.map(it => {
+        const qty = Number(it.quantity) || 1;
+        const rate = Number(it.rate) || 0;
+        const discount = Number(it.discount) || 0;
+        const netRate = rate - discount;
+        const amt = Number((qty * netRate).toFixed(2));
+        const taxRate = Number(it.tax_rate) || 0;
+        const taxAmt = it.tax_amount !== undefined && it.tax_amount !== null
+          ? Number(it.tax_amount)
+          : Number((amt * taxRate / 100).toFixed(2));
+        const total = it.total !== undefined && it.total !== null
+          ? Number(it.total)
+          : Number((amt + taxAmt).toFixed(2));
+        const mrp = it.mrp ? Number(it.mrp) : (rate > 0 ? rate : total / (qty || 1));
+        return {
+          name: it.item_name,
+          qty: qty,
+          mrp: mrp.toFixed(2),
+          rate: rate.toFixed(2),
+          amt: amt.toFixed(2),
+          tax: taxAmt.toFixed(2),
+          total: total.toFixed(2)
+        };
+      }),
+      subtotal: Number(invoice.subtotal).toFixed(2),
+      taxTotal: Number(invoice.tax_amount).toFixed(2),
+      grandTotal: Number(invoice.total_amount).toFixed(2),
+      paidAmount: Number(invoice.amount_paid || 0).toFixed(2),
+      balanceDue: Number(invoice.total_amount - (invoice.amount_paid || 0)).toFixed(2),
+      currency: '₹'
+    });
+
+    await mailer.sendMail({
+      to: recipientEmail,
+      subject: emailData.subject,
+      html: emailData.html,
+      text: emailData.text,
+      from: mailer.fromEmail,
+      fromName: company?.name || mailer.fromName
+    });
+
+    if (invoice.party_id && (!invoice.party_email || !invoice.party_email.trim())) {
+      await db.prepare(`UPDATE parties SET email = ?, updated_at = datetime('now') WHERE id = ? AND company_id = ?`).bind(recipientEmail, invoice.party_id, companyId).run().catch(() => {});
+    }
+
+    return c.json({
+      success: true,
+      message: `Receipt dispatched successfully to ${recipientEmail}`,
+      recipient_email: recipientEmail
+    });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }

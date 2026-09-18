@@ -113,3 +113,4 @@ desktop.ini
 # Tooling & Agentic Artifacts
 .gemini/
 .agents/
+backend/wrangler.toml

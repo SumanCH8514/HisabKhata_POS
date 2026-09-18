@@ -18,12 +18,21 @@ DROP TABLE IF EXISTS companies;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  email           TEXT    NOT NULL UNIQUE,
-  password        TEXT    NOT NULL,
-  is_admin        INTEGER NOT NULL DEFAULT 0,
-  role            TEXT    NOT NULL DEFAULT 'owner' CHECK(role IN ('owner','manager','cashier')),
-  created_at      TEXT    DEFAULT (datetime('now'))
+  id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+  email                       TEXT    NOT NULL UNIQUE,
+  password                    TEXT    NOT NULL,
+  is_admin                    INTEGER NOT NULL DEFAULT 0,
+  role                        TEXT    NOT NULL DEFAULT 'owner' CHECK(role IN ('owner','manager','cashier')),
+  name                        TEXT,
+  mobile                      TEXT,
+  photo_url                   TEXT,
+  email_verified              INTEGER NOT NULL DEFAULT 0,
+  verification_token          TEXT,
+  verification_token_expires  TEXT,
+  verification_code           TEXT,
+  reset_password_token        TEXT,
+  reset_password_expires      TEXT,
+  created_at                  TEXT    DEFAULT (datetime('now'))
 );
 
 CREATE TABLE companies (

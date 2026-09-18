@@ -13,7 +13,8 @@ import {
   getItems, 
   getExpenses, 
   getInvoices,
-  fmtCurrency 
+  fmtCurrency,
+  getCompany
 } from '../api/client.js';
 
 const getLocalDateStr = (d = new Date()) => {
@@ -32,6 +33,7 @@ export default function Reports() {
   const [dayBookData, setDayBookData] = useState([]);
   const [itemsData, setItemsData] = useState([]);
   const [expensesData, setExpensesData] = useState([]);
+  const [company, setCompany] = useState(null);
   
   const [period, setPeriod] = useState('THIS_MONTH');
   const [customFrom, setCustomFrom] = useState('');
@@ -39,7 +41,7 @@ export default function Reports() {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState(getLocalDateStr(new Date()));
 
-  const companyName = localStorage.getItem('companyName') || 'HisabKhata POS';
+  const companyName = company?.name || company?.business_name || localStorage.getItem('companyName') || 'HisabKhata POS';
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -76,9 +78,11 @@ export default function Reports() {
       getGstReport().catch(() => []),
       getDayBook({ date: dateFilter }).catch(() => []),
       getItems().catch(() => []),
-      getExpenses().catch(() => [])
+      getExpenses().catch(() => []),
+      getCompany().catch(() => null)
     ])
-      .then(([sales, purchases, gst, daybook, items, expenses]) => {
+      .then(([sales, purchases, gst, daybook, items, expenses, comp]) => {
+        if (comp) setCompany(comp);
         const salesList = sales || [];
         setSalesData(salesList);
         setPurchasesData(purchases || []);
@@ -298,20 +302,92 @@ export default function Reports() {
     downloadCsv(`Profit-And-Loss-${getLocalDateStr(new Date())}.csv`, headers, rows);
   };
 
-  const exportStockCsv = () => {
+  const exportStockCsv = async () => {
     if (itemsData.length === 0) return alert('No inventory items to export');
-    const headers = ['Item Name', 'Barcode', 'SKU', 'Current Stock', 'Unit', 'Purchase Cost (Rs)', 'Sale Price (Rs)', 'Total Stock Value (Rs)'];
-    const rows = itemsData.map(it => [
-      `"${it.name || ''}"`,
-      `"${it.barcode || ''}"`,
-      `"${it.sku || ''}"`,
-      it.current_stock || 0,
-      `"${it.unit || 'pcs'}"`,
-      it.purchase_price || 0,
-      it.sale_price || 0,
-      ((Number(it.current_stock) || 0) * (Number(it.purchase_price) || 0)).toFixed(2)
-    ]);
-    downloadCsv(`Stock-Valuation-${getLocalDateStr(new Date())}.csv`, headers, rows);
+
+    const xlsxModule = await import('xlsx-js-style');
+    const XLSX = xlsxModule.default || xlsxModule;
+
+    const headers = [
+      'Item Name',
+      'Barcode',
+      'SKU',
+      'Current Stock',
+      'Unit',
+      'Purchase Cost (Rs)',
+      'Sale Price (Rs)',
+      'Total Stock Value (Rs)'
+    ];
+
+    const headerBorder = {
+      top: { style: 'thin', color: { rgb: '006100' } },
+      bottom: { style: 'thin', color: { rgb: '006100' } }
+    };
+
+    const headerRow = headers.map((h, i) => ({
+      v: h,
+      t: 's',
+      s: {
+        font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: '006100' } },
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } },
+        alignment: {
+          horizontal: i >= 5 ? 'right' : (i === 3 || i === 4 ? 'left' : 'left'),
+          vertical: 'center'
+        },
+        border: headerBorder
+      }
+    }));
+
+    const dataRows = itemsData.map((it, idx) => {
+      const stock = Number(it.current_stock) || 0;
+      const unit = it.unit || 'Pcs';
+      const purchasePrice = Number(it.purchase_price) || 0;
+      const salePrice = Number(it.sale_price) || 0;
+      const totalValue = Math.round((stock * purchasePrice) * 100) / 100;
+      const isEven = idx % 2 === 0;
+      const rowColor = isEven ? 'C6EFCE' : 'FFFFFF';
+      const isLast = idx === itemsData.length - 1;
+
+      const cellBorder = isLast ? { bottom: { style: 'thin', color: { rgb: '006100' } } } : {};
+
+      const cellStyle = (align = 'left') => ({
+        font: { name: 'Calibri', sz: 11, color: { rgb: '000000' } },
+        fill: { patternType: 'solid', fgColor: { rgb: rowColor } },
+        alignment: { horizontal: align, vertical: 'center' },
+        border: cellBorder
+      });
+
+      return [
+        { v: it.name || '', t: 's', s: cellStyle('left') },
+        { v: it.barcode || '', t: 's', s: cellStyle('left') },
+        { v: it.sku || '', t: 's', s: cellStyle('left') },
+        { v: `${stock} ${unit}`, t: 's', s: cellStyle('left') },
+        { v: unit, t: 's', s: cellStyle('left') },
+        { v: purchasePrice, t: 'n', s: cellStyle('right') },
+        { v: salePrice, t: 'n', s: cellStyle('right') },
+        { v: totalValue, t: 'n', s: cellStyle('right') }
+      ];
+    });
+
+    const wsData = [headerRow, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    ws['!cols'] = [
+      { wch: 38 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 8 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 22 }
+    ];
+
+    ws['!rows'] = [{ hpt: 22 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock Valuation');
+    XLSX.writeFile(wb, `Stock-Valuation-${getLocalDateStr(new Date())}.xlsx`);
   };
 
   const exportDayBookCsv = () => {
@@ -496,43 +572,50 @@ export default function Reports() {
         </div>
       )}
 
-      <div className="hidden print:block mb-6 pb-4 border-b border-slate-300">
-        <h1 className="text-xl font-black text-slate-900">{companyName}</h1>
-        <p className="text-sm font-bold text-slate-600 mt-1">
-          {activeTab === 'SALES' && 'Sales Register Report'}
-          {activeTab === 'GST' && 'GSTR-1 Outward Supplies Summary'}
-          {activeTab === 'PNL' && 'Profit & Loss Statement'}
-          {activeTab === 'STOCK' && 'Inventory Stock Valuation Report'}
-          {activeTab === 'DAYBOOK' && `Day Book Register (${dateFilter})`}
-        </p>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Generated on {new Date().toLocaleString()} {dateRange.from && `• Period: ${dateRange.from} to ${dateRange.to || 'Present'}`}
-        </p>
+      <div className="hidden print:block mb-4 pb-2.5 border-b border-slate-300 w-full box-border">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">{companyName}</h1>
+            {company?.gstin && <p className="text-xs font-semibold text-slate-600">GSTIN: {company.gstin}</p>}
+            <p className="text-sm font-bold text-slate-700 mt-0.5">
+              {activeTab === 'SALES' && 'Sales Register Report'}
+              {activeTab === 'GST' && 'GSTR-1 Outward Supplies Summary'}
+              {activeTab === 'PNL' && 'Profit & Loss Statement'}
+              {activeTab === 'STOCK' && 'Inventory Stock Valuation Report'}
+              {activeTab === 'DAYBOOK' && `Day Book Register (${dateFilter})`}
+            </p>
+          </div>
+          <div className="text-right text-[10px] sm:text-[11px] text-slate-500 shrink-0 leading-tight pr-1">
+            <p className="font-bold text-slate-800">HisabKhata POS</p>
+            <p className="mt-0.5">Generated: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+            {dateRange.from && <p className="mt-0.5 font-medium">Period: {dateRange.from} to {dateRange.to || 'Present'}</p>}
+          </div>
+        </div>
       </div>
 
       {activeTab === 'SALES' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Sales Revenue</span>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight number-cell mt-1">{fmtCurrency(totalSalesRevenue)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">From {filteredSales.length} tax invoices</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 sm:gap-4 print:gap-2.5">
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Sales Revenue</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-900 tracking-tight number-cell mt-1">{fmtCurrency(totalSalesRevenue)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">From {filteredSales.length} tax invoices</span>
             </div>
             
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Taxable Subtotal</span>
-              <p className="text-xl sm:text-2xl font-black text-slate-700 tracking-tight number-cell mt-1">{fmtCurrency(totalTaxableSales)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Excluding output GST</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Taxable Subtotal</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-700 tracking-tight number-cell mt-1">{fmtCurrency(totalTaxableSales)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Excluding output GST</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total GST Collected</span>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(totalTaxCollected)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Output GST tax payable</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total GST Collected</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(totalTaxCollected)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Output GST tax payable</span>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl shadow-xs print:shadow-none overflow-hidden print:overflow-visible">
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400 flex flex-col items-center gap-2">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -540,7 +623,7 @@ export default function Reports() {
               </div>
             ) : filteredSales.length > 0 ? (
               <>
-                <div className="sm:hidden divide-y divide-slate-100 p-2 space-y-2">
+                <div className="sm:hidden print:hidden divide-y divide-slate-100 p-2 space-y-2">
                   {filteredSales.map(s => (
                     <div key={s.id} className="p-3 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl space-y-2 transition-all">
                       <div className="flex items-center justify-between gap-2">
@@ -560,27 +643,27 @@ export default function Reports() {
                   ))}
                 </div>
 
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="hidden sm:block print:block overflow-x-auto print:overflow-visible">
+                  <table className="w-full text-left text-xs print:text-[10px] table-auto print:table-fixed border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold tracking-wider whitespace-nowrap">
-                        <th className="py-3 px-4">Invoice #</th>
-                        <th className="py-3 px-4">Date</th>
-                        <th className="py-3 px-4">Customer</th>
-                        <th className="py-3 px-4 text-right">Taxable Value</th>
-                        <th className="py-3 px-4 text-right">Tax Amount</th>
-                        <th className="py-3 px-4 text-right">Total (INR)</th>
+                      <tr className="bg-slate-50/80 print:bg-slate-100 border-b border-slate-200 print:border-slate-300 text-slate-500 print:text-slate-800 uppercase text-[10px] print:text-[9px] font-bold tracking-wider whitespace-nowrap">
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[18%]">Invoice #</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[14%]">Date</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[28%]">Customer</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[14%]">Taxable Value</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[12%]">Tax Amount</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[14%]">Total (INR)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 print:divide-slate-200">
                       {filteredSales.map(s => (
                         <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap font-mono">{s.invoice_number}</td>
-                          <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">{s.date}</td>
-                          <td className="py-2.5 px-4 text-slate-700 whitespace-nowrap font-medium">{s.party_name || 'Walk-in Customer'}</td>
-                          <td className="py-2.5 px-4 text-right number-cell whitespace-nowrap">{fmtCurrency(s.subtotal || (Number(s.total_amount || 0) - Number(s.tax_amount || 0)))}</td>
-                          <td className="py-2.5 px-4 text-right number-cell text-emerald-600 font-bold whitespace-nowrap">{fmtCurrency(s.tax_amount)}</td>
-                          <td className="py-2.5 px-4 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">{fmtCurrency(s.total_amount)}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 font-bold text-slate-900 whitespace-nowrap font-mono">{s.invoice_number}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-500 whitespace-nowrap">{s.date}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-700 whitespace-nowrap print:whitespace-normal print:break-words font-medium">{s.party_name || 'Walk-in Customer'}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell whitespace-nowrap">{fmtCurrency(s.subtotal || (Number(s.total_amount || 0) - Number(s.tax_amount || 0)))}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell text-emerald-600 font-bold whitespace-nowrap">{fmtCurrency(s.tax_amount)}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">{fmtCurrency(s.total_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -596,31 +679,31 @@ export default function Reports() {
 
       {activeTab === 'GST' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">GSTR-1 Taxable Value</span>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight number-cell mt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 sm:gap-4 print:gap-2.5">
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">GSTR-1 Taxable Value</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-900 tracking-tight number-cell mt-1">
                 {fmtCurrency(filteredGst.reduce((sum, g) => sum + (Number(g.subtotal) || 0), 0))}
               </p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Net outward taxable base</span>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Net outward taxable base</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Output GST</span>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight number-cell mt-1">
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Output GST</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">
                 {fmtCurrency(filteredGst.reduce((sum, g) => sum + (Number(g.tax_amount) || 0), 0))}
               </p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">IGST + CGST + SGST</span>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">IGST + CGST + SGST</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Invoice Count</span>
-              <p className="text-xl sm:text-2xl font-black text-slate-700 tracking-tight number-cell mt-1">{filteredGst.length}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">B2B + B2C Tax Vouchers</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Invoice Count</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-700 tracking-tight number-cell mt-1">{filteredGst.length}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">B2B + B2C Tax Vouchers</span>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl shadow-xs print:shadow-none overflow-hidden print:overflow-visible">
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400 flex flex-col items-center gap-2">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -628,7 +711,7 @@ export default function Reports() {
               </div>
             ) : filteredGst.length > 0 ? (
               <>
-                <div className="sm:hidden divide-y divide-slate-100 p-2 space-y-2">
+                <div className="sm:hidden print:hidden divide-y divide-slate-100 p-2 space-y-2">
                   {filteredGst.map((g, i) => (
                     <div key={i} className="p-3 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl space-y-2 transition-all">
                       <div className="flex items-center justify-between gap-2">
@@ -649,29 +732,29 @@ export default function Reports() {
                   ))}
                 </div>
 
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="hidden sm:block print:block overflow-x-auto print:overflow-visible">
+                  <table className="w-full text-left text-xs print:text-[10px] table-auto print:table-fixed border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold tracking-wider whitespace-nowrap">
-                        <th className="py-3 px-4">Invoice #</th>
-                        <th className="py-3 px-4">Date</th>
-                        <th className="py-3 px-4">Customer Name</th>
-                        <th className="py-3 px-4">GSTIN</th>
-                        <th className="py-3 px-4 text-right">Taxable</th>
-                        <th className="py-3 px-4 text-right">GST Amount</th>
-                        <th className="py-3 px-4 text-right">Total Invoice</th>
+                      <tr className="bg-slate-50/80 print:bg-slate-100 border-b border-slate-200 print:border-slate-300 text-slate-500 print:text-slate-800 uppercase text-[10px] print:text-[9px] font-bold tracking-wider whitespace-nowrap">
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[15%]">Invoice #</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[13%]">Date</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[24%]">Customer Name</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[16%]">GSTIN</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[11%]">Taxable</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[10%]">GST Amount</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[11%]">Total Invoice</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 print:divide-slate-200">
                       {filteredGst.map((g, i) => (
                         <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap font-mono">{g.invoice_number}</td>
-                          <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">{g.date}</td>
-                          <td className="py-2.5 px-4 text-slate-700 whitespace-nowrap font-medium">{g.customer_name || 'Walk-in'}</td>
-                          <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">{g.customer_gstin || 'URP'}</td>
-                          <td className="py-2.5 px-4 text-right number-cell whitespace-nowrap">{fmtCurrency(g.subtotal)}</td>
-                          <td className="py-2.5 px-4 text-right number-cell font-bold text-emerald-600 whitespace-nowrap">{fmtCurrency(g.tax_amount)}</td>
-                          <td className="py-2.5 px-4 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">{fmtCurrency(g.total_amount)}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 font-bold text-slate-900 whitespace-nowrap font-mono">{g.invoice_number}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-500 whitespace-nowrap">{g.date}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-700 whitespace-nowrap print:whitespace-normal print:break-words font-medium">{g.customer_name || 'Walk-in'}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 font-mono text-[11px] print:text-[9px] text-slate-500 whitespace-nowrap">{g.customer_gstin || 'URP'}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell whitespace-nowrap">{fmtCurrency(g.subtotal)}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell font-bold text-emerald-600 whitespace-nowrap">{fmtCurrency(g.tax_amount)}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">{fmtCurrency(g.total_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -686,39 +769,39 @@ export default function Reports() {
       )}
 
       {activeTab === 'PNL' && (
-        <div className="space-y-4 max-w-4xl mx-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Sales Revenue</span>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight number-cell mt-1">{fmtCurrency(totalSalesRevenue)}</p>
-              <span className="text-[10px] sm:text-[11px] text-emerald-600 font-bold mt-1 block">Inward Sales</span>
+        <div className="space-y-4 max-w-4xl mx-auto print:max-w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 sm:gap-4 print:gap-2.5">
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Sales Revenue</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-900 tracking-tight number-cell mt-1">{fmtCurrency(totalSalesRevenue)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-emerald-600 font-bold mt-1 block">Inward Sales</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Purchases & Expenses</span>
-              <p className="text-xl sm:text-2xl font-black text-rose-600 tracking-tight number-cell mt-1">{fmtCurrency(totalPurchasesCost + totalOperatingExpenses)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Stock + Overhead Costs</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Purchases & Expenses</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-rose-600 tracking-tight number-cell mt-1">{fmtCurrency(totalPurchasesCost + totalOperatingExpenses)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Stock + Overhead Costs</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wider block">Net Estimated Profit</span>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(estimatedNetProfit)}</p>
-              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 mt-1 block">{netProfitMarginPct}% Profit Margin</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Net Estimated Profit</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(estimatedNetProfit)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] font-bold text-emerald-700 mt-1 block">{netProfitMarginPct}% Profit Margin</span>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
+          <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-4 sm:p-6 print:p-4 shadow-xs print:shadow-none space-y-5 print:space-y-3">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 print:border-slate-200">
+              <h2 className="text-xs sm:text-sm print:text-xs font-black text-slate-800 uppercase tracking-wider">
                 Comprehensive Profit & Loss Statement
               </h2>
-              <span className="text-[11px] font-bold text-slate-400 font-mono">
+              <span className="text-[11px] print:text-[10px] font-bold text-slate-400 font-mono">
                 {dateRange.from ? `${dateRange.from} to ${dateRange.to || 'Present'}` : 'All Time'}
               </span>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl space-y-2">
+            <div className="space-y-3 text-xs print:text-[11px]">
+              <div className="p-3 bg-slate-50 print:bg-slate-50/50 rounded-xl border border-slate-200/50 print:border-slate-200 space-y-2">
                 <div className="flex justify-between items-center font-bold text-slate-800">
                   <span>1. Gross Sales Inflow (+)</span>
                   <span className="number-cell font-black text-slate-900">{fmtCurrency(totalSalesRevenue)}</span>
@@ -733,7 +816,7 @@ export default function Reports() {
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl space-y-2">
+              <div className="p-3 bg-slate-50 print:bg-slate-50/50 rounded-xl border border-slate-200/50 print:border-slate-200 space-y-2">
                 <div className="flex justify-between items-center font-bold text-slate-800">
                   <span>2. Operating Overheads & Expenses (-)</span>
                   <span className="number-cell font-black text-rose-600">{fmtCurrency(totalOperatingExpenses)}</span>
@@ -752,13 +835,13 @@ export default function Reports() {
                 )}
               </div>
 
-              <div className="flex justify-between items-center p-3.5 sm:p-4 bg-emerald-50 rounded-2xl border border-emerald-200 shadow-2xs">
+              <div className="flex justify-between items-center p-3.5 sm:p-4 print:p-3 bg-emerald-50 rounded-2xl print:rounded-xl border border-emerald-200 shadow-2xs print:shadow-none">
                 <div>
                   <span className="text-xs sm:text-sm font-black text-emerald-950 block">Net Store Profit / Earning</span>
-                  <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">After accounting for goods and business expenses</span>
+                  <span className="text-[11px] print:text-[9px] text-emerald-700 font-medium mt-0.5 block">After accounting for goods and business expenses</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-lg sm:text-xl font-black text-emerald-700 number-cell block">{fmtCurrency(estimatedNetProfit)}</span>
+                  <span className="text-lg sm:text-xl print:text-base font-black text-emerald-700 number-cell block">{fmtCurrency(estimatedNetProfit)}</span>
                   <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">{netProfitMarginPct}% Margin</span>
                 </div>
               </div>
@@ -769,27 +852,27 @@ export default function Reports() {
 
       {activeTab === 'STOCK' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total In-Stock Cost Valuation</span>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight number-cell mt-1">{fmtCurrency(totalInventoryValuationCost)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Cost value of all stored inventory</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 sm:gap-4 print:gap-2.5">
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total In-Stock Cost Valuation</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-900 tracking-tight number-cell mt-1">{fmtCurrency(totalInventoryValuationCost)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Cost value of all stored inventory</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Retail / Sale Value</span>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(totalInventoryValuationRetail)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Estimated value at retail selling prices</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Retail / Sale Value</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(totalInventoryValuationRetail)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Estimated value at retail selling prices</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Potential Gross Profit in Stock</span>
-              <p className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight number-cell mt-1">{fmtCurrency(potentialInventoryMargin)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Across {itemsData.length} unique catalog items</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Potential Gross Profit in Stock</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-blue-600 tracking-tight number-cell mt-1">{fmtCurrency(potentialInventoryMargin)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Across {itemsData.length} unique catalog items</span>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl shadow-xs print:shadow-none overflow-hidden print:overflow-visible">
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400 flex flex-col items-center gap-2">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -797,7 +880,7 @@ export default function Reports() {
               </div>
             ) : filteredItems.length > 0 ? (
               <>
-                <div className="sm:hidden divide-y divide-slate-100 p-2 space-y-2">
+                <div className="sm:hidden print:hidden divide-y divide-slate-100 p-2 space-y-2">
                   {filteredItems.map(it => {
                     const isLowStock = (it.current_stock || 0) <= (it.min_stock || 5);
                     return (
@@ -821,35 +904,35 @@ export default function Reports() {
                   })}
                 </div>
 
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="hidden sm:block print:block overflow-x-auto print:overflow-visible">
+                  <table className="w-full text-left text-xs print:text-[10px] table-auto print:table-fixed border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold tracking-wider whitespace-nowrap">
-                        <th className="py-3 px-4">Item Name</th>
-                        <th className="py-3 px-4">SKU / Barcode</th>
-                        <th className="py-3 px-4 text-center">In Stock</th>
-                        <th className="py-3 px-4 text-right">Cost Price</th>
-                        <th className="py-3 px-4 text-right">Sale Price</th>
-                        <th className="py-3 px-4 text-right">Stock Valuation</th>
+                      <tr className="bg-slate-50/80 print:bg-slate-100 border-b border-slate-200 print:border-slate-300 text-slate-500 print:text-slate-800 uppercase text-[10px] print:text-[9px] font-bold tracking-wider">
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[32%]">Item Name</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 w-[18%] print:w-[15%]">SKU / Barcode</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-center w-[12%] print:w-[11%]">In Stock</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right w-[14%] print:w-[13%]">Cost Price</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right w-[14%] print:w-[13%]">Sale Price</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right w-[16%] print:w-[16%]">Stock Valuation</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 print:divide-slate-200">
                       {filteredItems.map(it => {
                         const isLowStock = (it.current_stock || 0) <= (it.min_stock || 5);
                         return (
                           <tr key={it.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap">{it.name}</td>
-                            <td className="py-2.5 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{it.barcode || it.sku || '—'}</td>
-                            <td className="py-2.5 px-4 text-center whitespace-nowrap">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 font-bold text-slate-900 whitespace-nowrap print:whitespace-normal print:break-words">{it.name}</td>
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 font-mono text-slate-500 text-[11px] print:text-[9px] whitespace-nowrap print:break-all">{it.barcode || it.sku || '—'}</td>
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-center whitespace-nowrap">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[11px] print:text-[9px] font-bold ${
                                 isLowStock ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-800'
                               }`}>
                                 {it.current_stock} {it.unit || 'pcs'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-4 text-right number-cell whitespace-nowrap">{fmtCurrency(it.purchase_price)}</td>
-                            <td className="py-2.5 px-4 text-right number-cell whitespace-nowrap">{fmtCurrency(it.sale_price)}</td>
-                            <td className="py-2.5 px-4 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell whitespace-nowrap font-medium">{fmtCurrency(it.purchase_price)}</td>
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell whitespace-nowrap font-medium">{fmtCurrency(it.sale_price)}</td>
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">
                               {fmtCurrency((it.current_stock || 0) * (it.purchase_price || 0))}
                             </td>
                           </tr>
@@ -868,25 +951,25 @@ export default function Reports() {
 
       {activeTab === 'DAYBOOK' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Inflow (Cash IN)</span>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(dayBookSummary.cashIn)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Sales + Payments In</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 sm:gap-4 print:gap-2.5">
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Inflow (Cash IN)</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(dayBookSummary.cashIn)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Sales + Payments In</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Outflow (Cash OUT)</span>
-              <p className="text-xl sm:text-2xl font-black text-rose-600 tracking-tight number-cell mt-1">{fmtCurrency(dayBookSummary.cashOut)}</p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Purchases + Expenses</span>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Outflow (Cash OUT)</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-rose-600 tracking-tight number-cell mt-1">{fmtCurrency(dayBookSummary.cashOut)}</p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Purchases + Expenses</span>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Net Daily Balance</span>
-              <p className={`text-xl sm:text-2xl font-black tracking-tight number-cell mt-1 ${dayBookSummary.netBalance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+            <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Net Daily Balance</span>
+              <p className={`text-xl sm:text-2xl print:text-lg font-black tracking-tight number-cell mt-1 ${dayBookSummary.netBalance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
                 {fmtCurrency(dayBookSummary.netBalance)}
               </p>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 mt-1 block">Inflow minus Outflow</span>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Inflow minus Outflow</span>
             </div>
           </div>
 
@@ -906,7 +989,7 @@ export default function Reports() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl shadow-xs print:shadow-none overflow-hidden print:overflow-visible">
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400 flex flex-col items-center gap-2">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -914,7 +997,7 @@ export default function Reports() {
               </div>
             ) : filteredDayBook.length > 0 ? (
               <>
-                <div className="sm:hidden divide-y divide-slate-100 p-2 space-y-2">
+                <div className="sm:hidden print:hidden divide-y divide-slate-100 p-2 space-y-2">
                   {filteredDayBook.map((d, idx) => {
                     const isOutflow = d.entry_type === 'EXPENSE' || (d.entry_type === 'PAYMENT' && d.type === 'OUT');
                     return (
@@ -938,31 +1021,31 @@ export default function Reports() {
                   })}
                 </div>
 
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="hidden sm:block print:block overflow-x-auto print:overflow-visible">
+                  <table className="w-full text-left text-xs print:text-[10px] table-auto print:table-fixed border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold tracking-wider whitespace-nowrap">
-                        <th className="py-3 px-4">Type</th>
-                        <th className="py-3 px-4">Reference / Description</th>
-                        <th className="py-3 px-4">Date</th>
-                        <th className="py-3 px-4 text-right">Amount</th>
+                      <tr className="bg-slate-50/80 print:bg-slate-100 border-b border-slate-200 print:border-slate-300 text-slate-500 print:text-slate-800 uppercase text-[10px] print:text-[9px] font-bold tracking-wider whitespace-nowrap">
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[18%]">Type</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[46%]">Reference / Description</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[16%]">Date</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[20%]">Amount</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 print:divide-slate-200">
                       {filteredDayBook.map((d, idx) => {
                         const isOutflow = d.entry_type === 'EXPENSE' || (d.entry_type === 'PAYMENT' && d.type === 'OUT');
                         return (
                           <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-2.5 px-4 whitespace-nowrap">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 whitespace-nowrap">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] print:text-[9px] font-bold ${
                                 d.entry_type === 'INVOICE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : d.entry_type === 'PAYMENT' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}>
                                 {d.entry_type} ({d.type})
                               </span>
                             </td>
-                            <td className="py-2.5 px-4 font-bold text-slate-800 whitespace-nowrap">{d.reference}</td>
-                            <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">{d.date}</td>
-                            <td className={`py-2.5 px-4 text-right font-extrabold number-cell whitespace-nowrap ${isOutflow ? 'text-rose-600' : 'text-emerald-700'}`}>
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 font-bold text-slate-800 whitespace-nowrap print:whitespace-normal print:break-words">{d.reference}</td>
+                            <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-500 whitespace-nowrap">{d.date}</td>
+                            <td className={`py-2.5 px-4 print:py-1.5 print:px-2 text-right font-extrabold number-cell whitespace-nowrap ${isOutflow ? 'text-rose-600' : 'text-emerald-700'}`}>
                               {isOutflow ? '-' : '+'}{fmtCurrency(d.amount)}
                             </td>
                           </tr>

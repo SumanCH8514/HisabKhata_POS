@@ -43,15 +43,22 @@ async function request(path, options = {}) {
       localStorage.removeItem('userName');
       window.location.href = '/login';
     }
-    throw new Error(data?.error || `HTTP ${res.status}`);
+    const err = new Error(data?.error || `HTTP ${res.status}`);
+    err.data = data;
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
 
-// ─── Authentication ───────────────────────────────────────────────────────────
 export const login = (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) });
 export const signup = (body) => request('/api/auth/signup', { method: 'POST', body: JSON.stringify(body) });
 export const getMe = () => request('/api/auth/me');
+export const verifyEmail = (body) => request('/api/auth/verify-email', { method: 'POST', body: JSON.stringify(body) });
+export const resendVerificationEmail = (body) => request('/api/auth/resend-verification', { method: 'POST', body: JSON.stringify(body) });
+export const forgotPassword = (body) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify(body) });
+export const verifyResetToken = (body) => request('/api/auth/verify-reset-token', { method: 'POST', body: JSON.stringify(body) });
+export const resetPassword = (body) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(body) });
 
 // ─── Companies ────────────────────────────────────────────────────────────────
 export const getCompanies = () => request('/api/companies');
@@ -107,6 +114,7 @@ export const getInvoice = (id) => request(`/api/invoices/${id}`);
 export const getPublicInvoice = (id) => request(`/api/public/invoices/${id}`);
 export const createInvoice = (body) => request('/api/invoices', { method: 'POST', body: JSON.stringify(body) });
 export const deleteInvoice = (id) => request(`/api/invoices/${id}`, { method: 'DELETE' });
+export const sendInvoiceReceipt = (id, body = {}) => request(`/api/invoices/${id}/send-receipt`, { method: 'POST', body: JSON.stringify(body) });
 
 export const getTransactions = (params = {}) => {
   return request(`/api/transactions${buildQuery(params)}`);

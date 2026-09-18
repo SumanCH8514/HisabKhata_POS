@@ -5,9 +5,9 @@ import {
   User, Package, Check, RefreshCw, X, ArrowRight,
   CreditCard, Smartphone, Banknote, Clock, Bookmark,
   ChevronRight, ChevronUp, ChevronDown, Minus, AlertCircle, Sparkles, Bluetooth, Zap,
-  Maximize2, Minimize2, ScanLine, Camera, UserPlus, Phone, Wallet, MapPin
+  Maximize2, Minimize2, ScanLine, Camera, UserPlus, Phone, Wallet, MapPin, Mail, Send
 } from 'lucide-react';
-import { getItems, getParties, createParty, createInvoice, fmtCurrency, fmt, getPosSettings } from '../api/client.js';
+import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, fmtCurrency, fmt, getPosSettings } from '../api/client.js';
 import { getConnectedPrinter, printEscPosInvoice } from '../utils/bluetoothPrinter.js';
 
 const playScannerBeep = () => {
@@ -64,9 +64,12 @@ export default function POSBilling() {
   const [partySearch, setPartySearch] = useState('');
   const [showPartySelect, setShowPartySelect] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
-  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', address: '', gst_number: '' });
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '', address: '', gst_number: '' });
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerError, setCustomerError] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailSendStatus, setEmailSendStatus] = useState(null);
 
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [selectedUpiOption, setSelectedUpiOption] = useState('BharatPe');
@@ -270,10 +273,13 @@ export default function POSBilling() {
   const handleOpenAddDetails = (searchVal) => {
     const val = (searchVal || partySearch || '').trim();
     const hasDigits = /\d/.test(val);
-    const phoneVal = hasDigits ? val : '';
+    const hasAt = val.includes('@');
+    const phoneVal = (hasDigits && !hasAt) ? val : '';
+    const emailVal = hasAt ? val : '';
     setNewCustomerForm({
-      name: val,
+      name: hasAt ? '' : val,
       phone: phoneVal,
+      email: emailVal,
       address: '',
       gst_number: ''
     });
@@ -294,6 +300,7 @@ export default function POSBilling() {
       const res = await createParty({
         name: newCustomerForm.name.trim(),
         phone: newCustomerForm.phone.trim(),
+        email: newCustomerForm.email?.trim() || '',
         address: newCustomerForm.address.trim(),
         gst_number: newCustomerForm.gst_number.trim(),
         type: 'CUSTOMER'
@@ -302,6 +309,7 @@ export default function POSBilling() {
         id: res?.id || Date.now(),
         name: newCustomerForm.name.trim(),
         phone: newCustomerForm.phone.trim(),
+        email: newCustomerForm.email?.trim() || '',
         address: newCustomerForm.address.trim(),
         type: 'CUSTOMER'
       };
@@ -309,7 +317,7 @@ export default function POSBilling() {
       setSelectedParty(created);
       setShowPartySelect(false);
       setShowAddCustomerModal(false);
-      setNewCustomerForm({ name: '', phone: '', address: '', gst_number: '' });
+      setNewCustomerForm({ name: '', phone: '', email: '', address: '', gst_number: '' });
       try {
         const cached = JSON.parse(localStorage.getItem('hk_pos_cached_parties') || '[]');
         localStorage.setItem('hk_pos_cached_parties', JSON.stringify([created, ...cached]));
@@ -418,6 +426,31 @@ export default function POSBilling() {
     localStorage.setItem('hk_held_bills', JSON.stringify(updatedHeld));
   };
 
+  const handleSendReceiptEmail = async (targetEmail) => {
+    const mailTo = (targetEmail || emailInput || '').trim();
+    if (!mailTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailTo)) {
+      setEmailSendStatus({ success: false, message: 'Please enter a valid email address' });
+      return;
+    }
+    if (!checkoutSuccess?.invoice_id) return;
+    setSendingEmail(true);
+    setEmailSendStatus(null);
+    try {
+      const res = await sendInvoiceReceipt(checkoutSuccess.invoice_id, { email: mailTo });
+      setEmailSendStatus({ success: true, message: `Receipt sent to ${mailTo}` });
+      setCheckoutSuccess(prev => ({
+        ...prev,
+        recipient_email: mailTo,
+        email_sent: true,
+        email_error: null
+      }));
+    } catch (err) {
+      setEmailSendStatus({ success: false, message: err.message || 'Failed to send email' });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setSubmitting(true);
@@ -446,6 +479,9 @@ export default function POSBilling() {
         invoice_number: invNo,
         date: new Date().toISOString().slice(0, 10),
         party_id: selectedParty?.id || null,
+        customer_email: selectedParty?.email || null,
+        customer_name: selectedParty?.name || null,
+        customer_phone: selectedParty?.phone || null,
         subtotal,
         tax_amount: taxTotal,
         total_amount: grandTotal,
@@ -467,6 +503,9 @@ export default function POSBilling() {
         invoice_number: invNo,
         date: new Date().toISOString().slice(0, 10),
         party_name: selectedParty?.name || '',
+        recipient_email: res.recipient_email || selectedParty?.email || '',
+        email_sent: res.email_sent,
+        email_error: res.email_error,
         subtotal,
         tax_amount: taxTotal,
         total_amount: grandTotal,
@@ -475,6 +514,8 @@ export default function POSBilling() {
         payment_mode: actualPaymentMode,
         items: cart
       });
+      setEmailInput(selectedParty?.email || '');
+      setEmailSendStatus(null);
 
       if (posCfg.autoPrintReceipt) {
         const printUrl = posCfg.preferredPrinter === 'LASER_A4'
@@ -897,7 +938,10 @@ export default function POSBilling() {
                           >
                             <div className="min-w-0 pr-2">
                               <p className="font-semibold text-slate-900 truncate">{p.name}</p>
-                              {p.phone && <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 mt-0.5"><Phone size={9} />{p.phone}</p>}
+                              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                {p.phone && <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1"><Phone size={9} />{p.phone}</span>}
+                                {p.email && <span className="text-[10px] text-slate-400 flex items-center gap-1 truncate max-w-[130px]"><Mail size={9} />{p.email}</span>}
+                              </div>
                             </div>
                             {isSel && <Check size={12} className="text-emerald-600 shrink-0" />}
                           </button>
@@ -1201,6 +1245,81 @@ export default function POSBilling() {
               </div>
             )}
 
+            {checkoutSuccess.recipient_email && checkoutSuccess.email_sent && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center justify-between gap-2 text-left">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Check size={14} className="text-emerald-600 shrink-0" />
+                  <span className="truncate text-[11px]">Receipt emailed to <strong>{checkoutSuccess.recipient_email}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  disabled={sendingEmail}
+                  onClick={() => handleSendReceiptEmail(checkoutSuccess.recipient_email)}
+                  className="text-[10px] text-emerald-700 hover:text-emerald-900 underline font-bold shrink-0 cursor-pointer"
+                >
+                  {sendingEmail ? 'Sending…' : 'Resend'}
+                </button>
+              </div>
+            )}
+
+            {checkoutSuccess.recipient_email && !checkoutSuccess.email_sent && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold space-y-1 text-left">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-[11px] font-bold text-amber-800 flex items-center gap-1">
+                    <AlertCircle size={13} className="text-amber-600 shrink-0" />
+                    Email not delivered ({checkoutSuccess.email_error || 'SMTP issue'})
+                  </span>
+                  <button
+                    type="button"
+                    disabled={sendingEmail}
+                    onClick={() => handleSendReceiptEmail(checkoutSuccess.recipient_email)}
+                    className="text-[10px] text-amber-900 hover:underline font-extrabold cursor-pointer"
+                  >
+                    {sendingEmail ? 'Retrying…' : 'Retry'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-amber-700">Target: {checkoutSuccess.recipient_email}</p>
+              </div>
+            )}
+
+            {!checkoutSuccess.recipient_email && (
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Email Digital Receipt</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <Mail size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      type="email"
+                      placeholder="Enter customer email…"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSendReceiptEmail();
+                        }
+                      }}
+                      className="w-full pl-7 pr-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 transition-all font-medium"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={sendingEmail || !emailInput.trim()}
+                    onClick={() => handleSendReceiptEmail()}
+                    className="py-1.5 px-3 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-40 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-xs"
+                  >
+                    <Send size={11} />
+                    <span>{sendingEmail ? 'Sending…' : 'Send'}</span>
+                  </button>
+                </div>
+                {emailSendStatus && (
+                  <p className={`text-[10px] font-bold ${emailSendStatus.success ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {emailSendStatus.message}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2 pt-1">
               {getConnectedPrinter() && (
                 <button
@@ -1304,6 +1423,17 @@ export default function POSBilling() {
                   value={newCustomerForm.phone}
                   onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-emerald-500 font-medium font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  placeholder="e.g. rahul@example.com"
+                  value={newCustomerForm.email}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-emerald-500 font-medium"
                 />
               </div>
 

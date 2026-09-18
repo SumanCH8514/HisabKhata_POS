@@ -5,9 +5,9 @@ import {
   FileText, Plus, Search, Filter, Printer, Download,
   CheckCircle2, Clock, AlertCircle, ChevronDown, Trash2,
   Calendar, User, ArrowRight, Eye, RefreshCw, X, CreditCard,
-  MoreVertical, ExternalLink, Copy, Check
+  MoreVertical, ExternalLink, Copy, Check, Mail
 } from 'lucide-react';
-import { getInvoices, createInvoice, deleteInvoice, createTransaction, getParties, getItems, fmtCurrency } from '../api/client.js';
+import { getInvoices, createInvoice, deleteInvoice, createTransaction, sendInvoiceReceipt, getParties, getItems, fmtCurrency } from '../api/client.js';
 
 const WhatsAppIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -129,7 +129,8 @@ function InvoiceMobileActionSheet({
   onClose,
   onRecordPayment,
   onDeleteInvoice,
-  getWhatsAppUrl
+  getWhatsAppUrl,
+  onEmailInvoice
 }) {
   const [copied, setCopied] = useState(false);
   if (!invoice) return null;
@@ -247,6 +248,23 @@ function InvoiceMobileActionSheet({
               <p className="text-[10px] text-emerald-700/90">Send digital receipt directly to customer's WhatsApp</p>
             </div>
           </a>
+
+          <button
+            type="button"
+            onClick={() => {
+              onEmailInvoice?.(invoice);
+              onClose();
+            }}
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-blue-200/80 bg-blue-50/40 hover:bg-blue-50 text-left transition-colors cursor-pointer group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+              <Mail size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-blue-900">Email Invoice Receipt</p>
+              <p className="text-[10px] text-blue-700/90">{invoice.party_email ? `Send directly to ${invoice.party_email}` : 'Enter customer email & dispatch receipt'}</p>
+            </div>
+          </button>
 
           <button
             type="button"
@@ -444,8 +462,12 @@ export default function Sales() {
     }
     setSubmitting(true);
     try {
-      await createInvoice({
+      const selectedParty = parties.find(p => String(p.id) === String(form.party_id));
+      const res = await createInvoice({
         ...form,
+        customer_email: selectedParty?.email || null,
+        customer_name: selectedParty?.name || null,
+        customer_phone: selectedParty?.phone || null,
         subtotal,
         tax_amount: taxTotal,
         total_amount: grandTotal,
@@ -453,10 +475,27 @@ export default function Sales() {
       });
       setShowModal(false);
       loadData();
+      if (res?.email_sent) {
+        alert(`Invoice created and receipt emailed to ${res.recipient_email}!`);
+      }
     } catch (err) {
       alert(err.message || 'Error creating invoice');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleEmailInvoice = async (inv) => {
+    let target = (inv.party_email || parties.find(p => p.id === inv.party_id)?.email || '').trim();
+    if (!target) {
+      target = window.prompt(`Enter customer email address for invoice #${inv.invoice_number}:`);
+      if (!target || !target.trim()) return;
+    }
+    try {
+      const res = await sendInvoiceReceipt(inv.id, { email: target.trim() });
+      alert(res.message || `Receipt dispatched successfully to ${target.trim()}`);
+    } catch (err) {
+      alert(err.message || 'Failed to dispatch email receipt');
     }
   };
 
@@ -646,6 +685,14 @@ export default function Sales() {
                           <WhatsAppIcon size={14} />
                         </a>
                         <button
+                          type="button"
+                          onClick={() => handleEmailInvoice(inv)}
+                          className="p-1.5 text-slate-500 hover:text-blue-600 bg-white border border-slate-200 rounded-lg shadow-2xs cursor-pointer inline-flex items-center justify-center transition-colors"
+                          title={inv.party_email ? `Email Receipt to ${inv.party_email}` : "Email Invoice Receipt"}
+                        >
+                          <Mail size={14} />
+                        </button>
+                        <button
                           onClick={() => setPrintModalInvoice(inv)}
                           className="p-1.5 text-slate-500 hover:text-emerald-600 bg-white border border-slate-200 rounded-lg shadow-2xs cursor-pointer"
                           title="Print Invoice"
@@ -719,6 +766,14 @@ export default function Sales() {
                             >
                               <WhatsAppIcon size={15} />
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => handleEmailInvoice(inv)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                              title={inv.party_email ? `Email Receipt to ${inv.party_email}` : "Email Invoice Receipt"}
+                            >
+                              <Mail size={15} />
+                            </button>
                             <button
                               onClick={() => setPrintModalInvoice(inv)}
                               className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
@@ -1008,6 +1063,7 @@ export default function Sales() {
           onRecordPayment={(inv) => setPayModalInvoice(inv)}
           onDeleteInvoice={handleDeleteInvoice}
           getWhatsAppUrl={getWhatsAppInvoiceUrl}
+          onEmailInvoice={handleEmailInvoice}
         />
       )}
 
