@@ -470,3 +470,9 @@ export const getMyPendingInvitations = () => request('/api/team/pending-invitati
 export const verifyInvitationToken = (token) => request(`/api/invitations/verify/${encodeURIComponent(token)}`);
 export const respondToInvitation = (body) => request('/api/invitations/respond', { method: 'POST', body: JSON.stringify(body) });
 export const signupWithInvite = (body) => request('/api/auth/signup-with-invite', { method: 'POST', body: JSON.stringify(body) });
+export const getMailStatus = () => request('/api/mail/status');
+export const sendMail = (body) => request('/api/mail/send', { method: 'POST', body: JSON.stringify(body) });
+export const sendTestMail = (body) => request('/api/mail/test', { method: 'POST', body: JSON.stringify(body || {}) });
+export const getSmtpSettings = () => request('/api/smtp-settings');
+export const saveSmtpSettings = (body) => request('/api/smtp-settings', { method: 'PUT', body: JSON.stringify(body) });
+export const testSmtpConnection = (body) => request('/api/smtp-settings/test', { method: 'POST', body: JSON.stringify(body || {}) });

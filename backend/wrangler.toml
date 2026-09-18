@@ -24,3 +24,14 @@ preview_bucket_name = "hisabkhata-pos"
 [dev]
 port = 8787
 local_protocol = "http"
+
+[vars]
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "465"
+SMTP_FROM_EMAIL = "pos.hisabkhata@sumanonline.com"
+SMTP_FROM_NAME = "HisabKhata POS"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

@@ -221,16 +221,20 @@ export default function JoinInvite() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-[#080d1a] dark:to-[#0f172a] flex flex-col justify-center items-center p-4 selection:bg-indigo-500 selection:text-white">
       <div className="w-full max-w-lg">
         <div className="text-center mb-6">
-          <Link to="/" className="inline-flex items-center gap-2 mb-3">
-            <img
-              src={theme === 'dark' ? logoDark : logoLight}
-              alt="HisabKhata POS"
-              className="h-9 w-auto object-contain"
-            />
-          </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide uppercase bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-            <Shield size={13} />
-            <span>Team Invitation</span>
+          <div className="mb-3">
+            <Link to="/" className="inline-flex items-center gap-2">
+              <img
+                src={theme === 'dark' ? logoDark : logoLight}
+                alt="HisabKhata POS"
+                className="h-9 w-auto object-contain"
+              />
+            </Link>
+          </div>
+          <div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide uppercase bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              <Shield size={13} />
+              <span>Team Invitation</span>
+            </span>
           </div>
         </div>
 
@@ -267,9 +271,23 @@ export default function JoinInvite() {
           ) : (
             <div>
               <div className="p-6 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/20 dark:to-purple-950/10 border-b border-slate-100 dark:border-slate-800 text-center space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-md">
-                  <Building2 size={24} />
-                </div>
+                {invitation.company_logo_url ? (
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mx-auto shadow-md">
+                    <img
+                      src={invitation.company_logo_url}
+                      alt={invitation.company_name}
+                      className="w-full h-full object-contain p-1"
+                      onError={(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}
+                    />
+                    <div className="w-full h-full items-center justify-center text-white bg-indigo-600" style={{ display: 'none' }}>
+                      <Building2 size={24} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-md">
+                    <Building2 size={24} />
+                  </div>
+                )}
                 <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
                   {invitation.company_name}
                 </h2>

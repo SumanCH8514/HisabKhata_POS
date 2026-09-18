@@ -320,3 +320,22 @@ CREATE INDEX IF NOT EXISTS idx_company_members_co ON company_members(company_id)
 CREATE INDEX IF NOT EXISTS idx_company_invitations_email ON company_invitations(email);
 CREATE INDEX IF NOT EXISTS idx_company_invitations_token ON company_invitations(token);
 CREATE INDEX IF NOT EXISTS idx_company_invitations_co ON company_invitations(company_id);
+
+CREATE TABLE IF NOT EXISTS company_smtp_settings (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id          INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  service_type        TEXT NOT NULL DEFAULT 'inbuilt' CHECK(service_type IN ('inbuilt', 'custom')),
+  host                TEXT,
+  port                INTEGER DEFAULT 465,
+  encryption          TEXT DEFAULT 'ssl_tls' CHECK(encryption IN ('ssl_tls', 'starttls')),
+  username            TEXT,
+  password            TEXT,
+  from_email          TEXT,
+  from_name           TEXT,
+  reply_to            TEXT,
+  created_at          TEXT DEFAULT (datetime('now')),
+  updated_at          TEXT DEFAULT (datetime('now')),
+  UNIQUE(company_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_company_smtp_settings_co ON company_smtp_settings(company_id);

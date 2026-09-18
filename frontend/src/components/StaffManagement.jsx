@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, UserPlus, Shield, ShieldCheck, UserCheck, Clock,
-  Copy, Check, Trash2, Mail, ExternalLink, RefreshCw,
+  Copy, Check, Trash2, Mail, RefreshCw,
   AlertCircle, ChevronDown, CheckCircle2, UserX, Share2, Sparkles, X
 } from 'lucide-react';
 import {
@@ -17,6 +17,8 @@ export default function StaffManagement() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+
 
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -45,6 +47,7 @@ export default function StaffManagement() {
       setMembers(teamRes?.members || []);
       setCurrentUserRole(teamRes?.currentUserRole || 'owner');
       setInvitations(Array.isArray(invRes) ? invRes : []);
+
     } catch (err) {
       setError(err.message || 'Failed to load team data');
     } finally {
@@ -66,6 +69,8 @@ export default function StaffManagement() {
     setInviteModalOpen(true);
   };
 
+
+
   const handleSendInvite = async (e) => {
     e.preventDefault();
     if (!inviteEmail || !inviteEmail.includes('@')) {
@@ -76,13 +81,38 @@ export default function StaffManagement() {
     setInviting(true);
     setInviteError('');
     try {
+      const recipient = inviteEmail.trim().toLowerCase();
       const res = await inviteTeamMember({
-        email: inviteEmail.trim().toLowerCase(),
+        email: recipient,
         role: inviteRole
       });
 
       if (res?.success && res.invitation) {
-        setCreatedInvite(res.invitation);
+        if (res.emailSent) {
+          console.log(
+            `%c 🚀 HisabKhata POS %c ✅ SUCCESS %c\n` +
+            `✉️ Mail sent to : ${recipient}\n` +
+            `📋 Invitation   : Team Member (${inviteRole})\n` +
+            `🎉 Delivery     : Success`,
+            'background: #1e1b4b; color: #a5b4fc; font-weight: bold; padding: 3px 8px; border-radius: 4px 0 0 4px; font-size: 11px;',
+            'background: #064e3b; color: #6ee7b7; font-weight: bold; padding: 3px 8px; border-radius: 0 4px 4px 0; font-size: 11px;',
+            'color: inherit; font-size: 12px; line-height: 1.6;'
+          );
+        } else if (res.emailError) {
+          console.error(
+            `%c 🚀 HisabKhata POS %c ❌ FAIL %c\n` +
+            `✉️ Mail sent to : ${recipient}\n` +
+            `⚠️ Delivery     : Fail (${res.emailError})`,
+            'background: #1e1b4b; color: #a5b4fc; font-weight: bold; padding: 3px 8px; border-radius: 4px 0 0 4px; font-size: 11px;',
+            'background: #7f1d1d; color: #fca5a5; font-weight: bold; padding: 3px 8px; border-radius: 0 4px 4px 0; font-size: 11px;',
+            'color: inherit; font-size: 12px; line-height: 1.6;'
+          );
+        }
+        setCreatedInvite({
+          ...res.invitation,
+          emailSent: res.emailSent,
+          emailError: res.emailError
+        });
         loadData(false);
       } else {
         throw new Error(res?.error || 'Failed to generate invitation');
@@ -183,57 +213,57 @@ export default function StaffManagement() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Members</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-              <Users size={16} />
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Members</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <Users size={14} className="sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 dark:text-white">{members.length}</span>
-            <span className="text-[11px] text-slate-400">active accounts</span>
+          <div className="mt-1.5 sm:mt-2 flex items-baseline gap-1.5">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{members.length}</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400">active</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Staff</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <UserCheck size={16} />
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Staff</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <UserCheck size={14} className="sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 dark:text-white">
+          <div className="mt-1.5 sm:mt-2 flex items-baseline gap-1.5">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
               {members.filter(m => !m.is_primary_owner).length}
             </span>
-            <span className="text-[11px] text-slate-400">cashiers & managers</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400">staff</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pending Invites</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Clock size={16} />
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pending Invites</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Clock size={14} className="sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 dark:text-white">{invitations.length}</span>
-            <span className="text-[11px] text-slate-400">awaiting response</span>
+          <div className="mt-1.5 sm:mt-2 flex items-baseline gap-1.5">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{invitations.length}</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400">pending</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Your Access Level</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-              <ShieldCheck size={16} />
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Your Access</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+              <ShieldCheck size={14} className="sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-wide ${
+          <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wide ${
               isOwner
                 ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300'
                 : currentUserRole === 'manager'
@@ -246,23 +276,23 @@ export default function StaffManagement() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-              <Users size={18} className="text-indigo-600 dark:text-indigo-400" />
+              <Users size={17} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
               Active Team Members
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               People who have access to this business and their designated roles
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               onClick={() => loadData(true)}
               disabled={refreshing}
-              className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+              className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer shrink-0"
               title="Refresh Team List"
             >
               <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
@@ -271,7 +301,7 @@ export default function StaffManagement() {
             {isOwner && (
               <button
                 onClick={handleOpenInviteModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 rounded-xl shadow-xs transition-all cursor-pointer"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap"
               >
                 <UserPlus size={15} />
                 <span>Invite Staff Member</span>
@@ -307,40 +337,47 @@ export default function StaffManagement() {
                 .toUpperCase();
 
               return (
-                <div key={member.member_id || member.user_id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                <div key={member.member_id || member.user_id} className="py-3 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                  <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                     {member.photo_url ? (
                       <img
                         src={member.photo_url}
                         alt=""
-                        className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0 mt-0.5 sm:mt-0"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 mt-0.5 sm:mt-0">
                         {initials}
                       </div>
                     )}
 
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                           {member.name || 'Team Member'}
                         </span>
                         {isPrimary && (
-                          <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-md">
+                          <span className="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-md shrink-0">
                             Primary Owner
                           </span>
                         )}
+                        <span className={`sm:hidden ml-auto px-2 py-0.5 text-[10px] font-extrabold rounded-md border uppercase tracking-wider ${roleColor}`}>
+                          {member.role || 'Staff'}
+                        </span>
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>{member.email}</span>
-                        {member.mobile && <span>• {member.mobile}</span>}
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span className="break-all">{member.email}</span>
+                        {member.mobile && (
+                          <span className="text-slate-400 shrink-0">
+                            <span className="hidden sm:inline">• </span>{member.mobile}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-auto">
-                    <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg border uppercase tracking-wider ${roleColor}`}>
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 pt-0.5 sm:pt-0">
+                    <span className={`hidden sm:inline-flex px-2.5 py-1 text-[11px] font-extrabold rounded-lg border uppercase tracking-wider ${roleColor}`}>
                       {member.role || 'Staff'}
                     </span>
 
@@ -351,16 +388,16 @@ export default function StaffManagement() {
                             setRoleChangeMember(member);
                             setNewRoleVal(member.role === 'manager' ? 'cashier' : 'manager');
                           }}
-                          className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
                         >
                           Change Role
                         </button>
                         <button
                           onClick={() => setDeleteConfirmMember(member)}
-                          className="p-1.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1 text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
                           title="Remove from Team"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     )}
@@ -373,13 +410,13 @@ export default function StaffManagement() {
       </div>
 
       {isOwner && (
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-          <div className="pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs">
+          <div className="pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800">
             <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-              <Clock size={18} className="text-amber-500" />
+              <Clock size={17} className="text-amber-500 shrink-0" />
               Pending Invitations
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Invitations sent to staff members waiting for acceptance or rejection
             </p>
           </div>
@@ -395,15 +432,15 @@ export default function StaffManagement() {
                 const daysLeft = Math.max(0, Math.ceil((expiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
                 return (
-                  <div key={inv.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">{inv.email}</span>
-                        <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                  <div key={inv.id} className="py-3 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">{inv.email}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
                           {inv.role}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                      <div className="text-[11px] text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span>Invited on {new Date(inv.created_at).toLocaleDateString()}</span>
                         <span>•</span>
                         <span className="text-amber-600 dark:text-amber-400 font-semibold">
@@ -412,10 +449,10 @@ export default function StaffManagement() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto pt-1 sm:pt-0 justify-end">
                       <button
                         onClick={() => handleCopyLink(inv.token)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
                       >
                         <Copy size={13} />
                         <span>Copy Link</span>
@@ -423,7 +460,7 @@ export default function StaffManagement() {
 
                       <button
                         onClick={() => handleWhatsAppShare(inv)}
-                        className="p-1.5 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer shrink-0"
                         title="Share on WhatsApp"
                       >
                         <Share2 size={15} />
@@ -431,7 +468,7 @@ export default function StaffManagement() {
 
                       <button
                         onClick={() => handleRevokeInvite(inv.id)}
-                        className="p-1.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer shrink-0"
                         title="Revoke Invitation"
                       >
                         <Trash2 size={15} />
@@ -444,6 +481,7 @@ export default function StaffManagement() {
           )}
         </div>
       )}
+
 
       {inviteModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
@@ -479,6 +517,18 @@ export default function StaffManagement() {
                     <p className="text-xs text-emerald-700 dark:text-emerald-300">
                       An invitation has been generated for <strong>{createdInvite.email}</strong> as <strong>{createdInvite.role}</strong>.
                     </p>
+                    {createdInvite.emailSent && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 text-xs font-semibold">
+                        <Mail size={14} className="text-emerald-600 dark:text-emerald-400" />
+                        <span>Email invitation automatically dispatched via SMTP</span>
+                      </div>
+                    )}
+                    {createdInvite.emailError && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-xs">
+                        <AlertCircle size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>Email not delivered ({createdInvite.emailError}). You can share the link below.</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -689,6 +739,7 @@ export default function StaffManagement() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

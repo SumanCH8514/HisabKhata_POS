@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Settings as SettingsIcon, Globe, Receipt, Printer, Shield,
+  Globe, Receipt, Printer, Users,
   Save, Check, RefreshCw, Smartphone, Volume2, Lock,
   FileText, Sparkles, Building2, Bell, AlertCircle, Percent,
   Bluetooth, BluetoothConnected, BluetoothOff, QrCode, Zap,
   ChevronDown, LayoutTemplate, Landmark, CreditCard, PenTool,
-  CheckCircle2, Sliders, Eye
+  CheckCircle2, Sliders, Eye, Mail
 } from 'lucide-react';
 import {
   isBluetoothSupported, connectBluetoothPrinter, disconnectBluetoothPrinter,
@@ -14,6 +14,7 @@ import {
 } from '../utils/bluetoothPrinter.js';
 import { getUserSettings, saveUserSettings } from '../api/client.js';
 import StaffManagement from './StaffManagement.jsx';
+import SmtpConfiguration from './SmtpConfiguration.jsx';
 
 function CustomSelect({ value, onChange, options = [], placeholder = 'Select Option', className = '' }) {
   const [open, setOpen] = useState(false);
@@ -75,10 +76,46 @@ function CustomSelect({ value, onChange, options = [], placeholder = 'Select Opt
   );
 }
 
+function TabHeader({ title, description, icon: Icon, actions, onSave, saving }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="min-w-0">
+        <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+          {Icon && <Icon size={18} className="text-emerald-600 dark:text-emerald-400 shrink-0" />}
+          <span>{title}</span>
+        </h2>
+        {description && (
+          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+        {actions}
+        {onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 w-full sm:w-auto"
+          >
+            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            <span>{saving ? 'Saving...' : 'Save Preferences'}</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'INVOICE_CONFIG';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) return tabParam;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    return isMobile ? null : 'INVOICE_CONFIG';
+  });
   const [savedToast, setSavedToast] = useState(false);
   const [saving, setSaving] = useState(false);
   const [btPrinter, setBtPrinter] = useState(null);
@@ -91,6 +128,11 @@ export default function Settings() {
     const tabParam = searchParams.get('tab');
     if (tabParam) {
       setActiveTab(tabParam);
+    } else {
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+      if (isMobile) {
+        setActiveTab(null);
+      }
     }
   }, [searchParams]);
 
@@ -297,7 +339,8 @@ export default function Settings() {
     { id: 'GENERAL', label: 'Currency & Localization', icon: Globe },
     { id: 'AI', label: 'AI Catalog Auto-Writer', icon: Sparkles },
     { id: 'HARDWARE', label: 'POS Hardware & Printing', icon: Printer },
-    { id: 'SECURITY', label: 'Staff & Security Guard', icon: Shield }
+    { id: 'SECURITY', label: 'Staff Management', icon: Users },
+    { id: 'SMTP', label: 'SMTP Configurations', icon: Mail }
   ];
 
   const [invoiceFormatTab, setInvoiceFormatTab] = useState('THERMAL');
@@ -369,18 +412,18 @@ export default function Settings() {
 
       return (
         <div className="space-y-6 animate-fade-in">
-          <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <Receipt size={16} className="text-emerald-600" />
-                Invoice Layout & Print Configurations
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Configure distinct layouts, visibility, and columns separately for Thermal Roll and A4 Full Page</p>
-            </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0">
-              <Sliders size={12} /> Format Isolated
-            </span>
-          </div>
+          <TabHeader
+            title="Invoice Layout & Print Configurations"
+            description="Configure distinct layouts, visibility, and columns separately for Thermal Roll and A4 Full Page"
+            icon={Receipt}
+            actions={
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-extrabold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 shrink-0">
+                <Sliders size={12} /> Format Isolated
+              </span>
+            }
+            onSave={handleSave}
+            saving={saving}
+          />
 
           <div className="bg-slate-100/80 dark:bg-slate-900/90 p-1.5 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border border-slate-200/80 dark:border-slate-800">
             <div className="grid grid-cols-2 gap-1.5 flex-1 max-w-md">
@@ -744,10 +787,13 @@ export default function Settings() {
     if (tabId === 'TAX') {
       return (
         <div className="space-y-5 animate-fade-in">
-          <div className="pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-extrabold text-slate-900">Tax Rates & GST Configuration</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Configure default GST tax slab, active rate categories, and computation rules</p>
-          </div>
+          <TabHeader
+            title="Tax Rates & GST Slabs"
+            description="Configure default GST tax slab, active rate categories, and computation rules"
+            icon={Percent}
+            onSave={handleSave}
+            saving={saving}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -844,10 +890,13 @@ export default function Settings() {
     if (tabId === 'GENERAL') {
       return (
         <div className="space-y-5 animate-fade-in">
-          <div className="pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-extrabold text-slate-900">Currency & Regional Settings</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Select your primary accounting currency and date format</p>
-          </div>
+          <TabHeader
+            title="Currency & Localization"
+            description="Select your primary accounting currency and date format preferences"
+            icon={Globe}
+            onSave={handleSave}
+            saving={saving}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -910,15 +959,13 @@ export default function Settings() {
     if (tabId === 'AI') {
       return (
         <div className="space-y-5 animate-fade-in">
-          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                <Sparkles size={16} className="text-purple-600" />
-                AI Catalog Auto-Writer
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Automate descriptions, HSN codes, and category classifications with Groq LLM</p>
-            </div>
-          </div>
+          <TabHeader
+            title="AI Catalog Auto-Writer"
+            description="Automate descriptions, HSN codes, and category classifications with Groq LLM"
+            icon={Sparkles}
+            onSave={handleSave}
+            saving={saving}
+          />
 
           <div className="space-y-4">
             <div>
@@ -955,13 +1002,13 @@ export default function Settings() {
     if (tabId === 'HARDWARE') {
       return (
         <div className="space-y-4 animate-fade-in">
-          <div className="pb-2 border-b border-slate-100">
-            <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-              <Printer size={16} className="text-emerald-600" />
-              Hardware & Bluetooth Devices
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Manage wireless thermal printers and barcode scanner peripherals</p>
-          </div>
+          <TabHeader
+            title="POS Hardware & Printing"
+            description="Manage wireless thermal printers, Bluetooth devices, and barcode scanner peripherals"
+            icon={Printer}
+            onSave={handleSave}
+            saving={saving}
+          />
 
           <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
             <div className="flex items-start justify-between gap-2">
@@ -1116,34 +1163,57 @@ export default function Settings() {
 
     if (tabId === 'SECURITY') {
       return (
-        <div className="space-y-6 animate-fade-in">
-          <StaffManagement />
+        <div className="space-y-4 sm:space-y-6 animate-fade-in">
+          <TabHeader
+            title="Staff Management"
+            description="Manage team accounts, staff roles, and counter data security permissions"
+            icon={Users}
+            onSave={handleSave}
+            saving={saving}
+          />
 
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-            <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">Counter Security & Visibility Rules</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Control what counter staff and cashiers can view</p>
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs">
+            <div className="pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Lock size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  Counter Security & Visibility Rules
+                </h3>
+                <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">Control what counter staff and cashiers can view</p>
+              </div>
             </div>
 
-            <div className="space-y-3 mt-4">
-              <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors">
+            <div className="mt-3">
+              <label className="flex items-start gap-3 p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors select-none">
                 <input
                   type="checkbox"
                   checked={settings.hideCostFromCashier}
-                  onChange={(e) => setSettings({ ...settings, hideCostFromCashier: e.target.checked })}
-                  className="w-4 h-4 text-emerald-600 rounded mt-0.5"
+                  onChange={(e) => {
+                    const next = { ...settings, hideCostFromCashier: e.target.checked };
+                    setSettings(next);
+                    localStorage.setItem('hk_pos_settings', JSON.stringify(next));
+                    window.dispatchEvent(new Event('hk_settings_updated'));
+                    saveUserSettings(next).catch(() => {});
+                  }}
+                  className="w-4 h-4 text-emerald-600 rounded mt-0.5 shrink-0"
                 />
-                <div>
+                <div className="min-w-0">
                   <span className="text-xs font-bold text-slate-900 dark:text-white block">Hide Cost Price & Profit Margins from Cashiers</span>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
                     Restricts purchase costs, supplier margins, and financial reports from non-admin counter staff.
                   </p>
                 </div>
               </label>
             </div>
           </div>
+
+          <StaffManagement />
         </div>
       );
+    }
+
+    if (tabId === 'SMTP') {
+      return <SmtpConfiguration />;
     }
 
     return null;
@@ -1161,39 +1231,19 @@ export default function Settings() {
   return (
     <div className="space-y-5 max-w-[1600px] mx-auto pb-10">
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-        <div>
-          <h1 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <SettingsIcon size={18} className="text-emerald-600" />
-            System & Billing Preferences
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Customize invoice configurations, GST rates, currency, thermal receipt drivers, and permissions</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSave}
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg shadow-xs transition-all cursor-pointer"
-          >
-            <Save size={14} strokeWidth={2.5} />
-            <span>Save Preferences</span>
-          </button>
-        </div>
-      </div>
-
       <div className="lg:hidden space-y-2.5">
         {tabs.map(tab => {
           const isOpen = activeTab === tab.id;
           return (
-            <div key={tab.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs transition-all">
+            <div key={tab.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs transition-all">
               <button
                 type="button"
                 onClick={() => handleSwitchTab(isOpen ? null : tab.id)}
-                className={`w-full flex items-center justify-between px-4 py-3.5 text-xs font-bold text-left transition-colors cursor-pointer ${isOpen ? 'bg-emerald-50/70 text-emerald-900' : 'text-slate-800 hover:bg-slate-50'
+                className={`w-full flex items-center justify-between px-4 py-3.5 text-xs font-bold text-left transition-colors cursor-pointer ${isOpen ? 'bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200' : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                   }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isOpen ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isOpen ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                     }`}>
                     <tab.icon size={15} />
                   </div>
@@ -1201,12 +1251,12 @@ export default function Settings() {
                 </div>
                 <ChevronDown
                   size={16}
-                  className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-600' : ''}`}
+                  className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-600 dark:text-emerald-400' : ''}`}
                 />
               </button>
 
               {isOpen && (
-                <div className="p-4 bg-white border-t border-slate-100 animate-fade-in">
+                <div className="p-3 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
                   {renderTabContent(tab.id)}
                 </div>
               )}
@@ -1217,25 +1267,28 @@ export default function Settings() {
 
       <div className="hidden lg:grid lg:grid-cols-12 gap-5">
 
-        <div className="lg:col-span-3 bg-white border border-slate-200 rounded-xl p-2 shadow-xs space-y-1 self-start sticky top-4">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => handleSwitchTab(tab.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${activeTab === tab.id
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-50'
-                }`}
-            >
-              <tab.icon size={15} className={activeTab === tab.id ? 'text-emerald-600' : 'text-slate-400'} />
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        <div className="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-xs space-y-1 self-start sticky top-4">
+          {tabs.map(tab => {
+            const isSelected = (activeTab || 'INVOICE_CONFIG') === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleSwitchTab(tab.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${isSelected
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+              >
+                <tab.icon size={15} className={isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="lg:col-span-9 bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-          {renderTabContent(activeTab)}
+        <div className="lg:col-span-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs">
+          {renderTabContent(activeTab || 'INVOICE_CONFIG')}
         </div>
 
       </div>

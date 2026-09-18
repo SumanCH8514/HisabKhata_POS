@@ -9,6 +9,13 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { sign, verify } from 'hono/jwt';
+import { createSmtpClient, resolveSmtpClient, SmtpClient } from './smtp.js';
+import {
+  buildStaffInvitationEmail,
+  buildTestVerificationEmail,
+  buildInvoiceReceiptEmail,
+  buildWelcomeEmail
+} from './mail_templates/index.js';
 
 const app = new Hono();
 const JWT_SECRET = 'hisabkhata-pos-super-secret-key';
@@ -126,7 +133,24 @@ async function runAutoMigrations(db) {
     `CREATE INDEX IF NOT EXISTS idx_company_members_co ON company_members(company_id)`,
     `CREATE INDEX IF NOT EXISTS idx_company_invitations_email ON company_invitations(email)`,
     `CREATE INDEX IF NOT EXISTS idx_company_invitations_token ON company_invitations(token)`,
-    `CREATE INDEX IF NOT EXISTS idx_company_invitations_co ON company_invitations(company_id)`
+    `CREATE INDEX IF NOT EXISTS idx_company_invitations_co ON company_invitations(company_id)`,
+    `CREATE TABLE IF NOT EXISTS company_smtp_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      service_type TEXT NOT NULL DEFAULT 'inbuilt' CHECK(service_type IN ('inbuilt', 'custom')),
+      host TEXT,
+      port INTEGER DEFAULT 465,
+      encryption TEXT DEFAULT 'ssl_tls' CHECK(encryption IN ('ssl_tls', 'starttls')),
+      username TEXT,
+      password TEXT,
+      from_email TEXT,
+      from_name TEXT,
+      reply_to TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(company_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_company_smtp_settings_co ON company_smtp_settings(company_id)`
   ];
   for (const sql of migrations) {
     try {
@@ -195,6 +219,43 @@ async function runAutoMigrations(db) {
   } catch { }
 
   migrationsApplied = true;
+}
+
+async function reconcilePartyBalance(db, companyId, partyId) {
+  if (!partyId) return;
+  const party = await db.prepare(
+    `SELECT id, opening_balance FROM parties WHERE id = ? AND company_id = ?`
+  ).bind(partyId, companyId).first();
+  if (!party) return;
+
+  const invSum = await db.prepare(`
+    SELECT COALESCE(SUM(
+      CASE WHEN type IN ('SALES','PURCHASE_RETURN') THEN (total_amount - amount_paid)
+           ELSE -(total_amount - amount_paid) END
+    ), 0) as net
+    FROM invoices
+    WHERE party_id = ? AND company_id = ? AND type != 'QUOTATION'
+  `).bind(partyId, companyId).first();
+
+  const txnSum = await db.prepare(`
+    SELECT COALESCE(SUM(
+      CASE WHEN type = 'PAYMENT_IN' THEN -amount ELSE amount END
+    ), 0) as net
+    FROM transactions
+    WHERE party_id = ? AND company_id = ?
+      AND (invoice_id IS NULL OR invoice_id NOT IN (
+        SELECT id FROM invoices WHERE company_id = ?
+      ))
+  `).bind(partyId, companyId, companyId).first();
+
+  const reconciledBalance = (Number(party.opening_balance) || 0)
+    + (Number(invSum?.net) || 0)
+    + (Number(txnSum?.net) || 0);
+
+  await db.prepare(`
+    UPDATE parties SET current_balance = ?, updated_at = datetime('now')
+    WHERE id = ? AND company_id = ?
+  `).bind(reconciledBalance, partyId, companyId).run();
 }
 
 app.use('/api/*', async (c, next) => {
@@ -1118,6 +1179,33 @@ app.post('/api/team/invite', authMiddleware, companyScopeMiddleware, ownerOnlyMi
       invitationId = res.meta.last_row_id;
     }
 
+    const mailer = await resolveSmtpClient(c.env, c.env.DB, companyId);
+    let emailSent = false;
+    let emailError = null;
+    if (mailer.isConfigured()) {
+      try {
+        const origin = c.req.header('origin') || 'https://pos.hisabkhata.sumanonline.com';
+        const inviteUrl = `${origin}/join?invite=${encodeURIComponent(token)}`;
+        const inviter = await c.env.DB.prepare(`SELECT name, email FROM users WHERE id = ?`).bind(userId).first();
+        const { subject, html, text } = buildStaffInvitationEmail({
+          companyName: company.name,
+          inviterName: inviter?.name || inviter?.email || 'The business owner',
+          role,
+          inviteUrl
+        });
+        await mailer.sendMail({
+          to: email,
+          subject,
+          html,
+          text,
+          from: mailer.fromEmail
+        });
+        emailSent = true;
+      } catch (mailErr) {
+        emailError = mailErr.message;
+      }
+    }
+
     return c.json({
       success: true,
       invitation: {
@@ -1128,7 +1216,9 @@ app.post('/api/team/invite', authMiddleware, companyScopeMiddleware, ownerOnlyMi
         role,
         token,
         expires_at: expiresAt
-      }
+      },
+      emailSent,
+      emailError
     }, 201);
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -1256,6 +1346,7 @@ app.get('/api/invitations/verify/:token', async (c) => {
         ci.expires_at,
         c.id as company_id,
         c.name as company_name,
+        c.logo_url as company_logo_url,
         inviter.name as inviter_name,
         inviter.email as inviter_email
       FROM company_invitations ci
@@ -1409,6 +1500,307 @@ app.post('/api/auth/signup-with-invite', async (c) => {
       ]
     }, 201);
   } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/mail/status', authMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId') || c.req.header('X-Company-ID');
+    const mailer = await resolveSmtpClient(c.env, c.env.DB, companyId);
+    const configured = mailer.isConfigured();
+    let maskedUser = '';
+    if (configured && mailer.user) {
+      const parts = mailer.user.split('@');
+      if (parts.length === 2) {
+        const namePart = parts[0];
+        const maskedName = namePart.length > 2 ? `${namePart.slice(0, 2)}***` : `${namePart}***`;
+        maskedUser = `${maskedName}@${parts[1]}`;
+      } else {
+        maskedUser = 'Configured';
+      }
+    }
+    const senders = [];
+    if (mailer.fromEmail) senders.push(mailer.fromEmail);
+    if (mailer.user && !senders.includes(mailer.user)) senders.push(mailer.user);
+
+    return c.json({
+      configured,
+      serviceType: mailer.serviceType,
+      host: mailer.host,
+      port: mailer.port,
+      user: maskedUser,
+      fromEmail: mailer.fromEmail || mailer.user || '',
+      fromName: mailer.fromName,
+      availableSenders: senders
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/smtp-settings', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const companyId = c.get('companyId');
+
+    const customRow = await db.prepare(
+      `SELECT * FROM company_smtp_settings WHERE company_id = ?`
+    ).bind(companyId).first();
+
+    const inbuiltMailer = createSmtpClient(c.env);
+    let maskedInbuiltUser = '';
+    if (inbuiltMailer.isConfigured() && inbuiltMailer.user) {
+      const parts = inbuiltMailer.user.split('@');
+      if (parts.length === 2) {
+        const namePart = parts[0];
+        const maskedName = namePart.length > 2 ? `${namePart.slice(0, 2)}***` : `${namePart}***`;
+        maskedInbuiltUser = `${maskedName}@${parts[1]}`;
+      } else {
+        maskedInbuiltUser = 'Configured';
+      }
+    }
+
+    const activeMailer = await resolveSmtpClient(c.env, db, companyId);
+
+    return c.json({
+      service_type: customRow?.service_type || 'inbuilt',
+      custom: {
+        host: customRow?.host || '',
+        port: customRow?.port || 465,
+        encryption: customRow?.encryption || 'ssl_tls',
+        username: customRow?.username || '',
+        has_password: Boolean(customRow?.password),
+        from_email: customRow?.from_email || '',
+        from_name: customRow?.from_name || '',
+        reply_to: customRow?.reply_to || ''
+      },
+      inbuilt: {
+        configured: inbuiltMailer.isConfigured(),
+        host: inbuiltMailer.host,
+        port: inbuiltMailer.port,
+        fromEmail: inbuiltMailer.fromEmail,
+        fromName: inbuiltMailer.fromName,
+        user: maskedInbuiltUser
+      },
+      active: {
+        serviceType: activeMailer.serviceType,
+        host: activeMailer.host,
+        port: activeMailer.port,
+        configured: activeMailer.isConfigured(),
+        fromEmail: activeMailer.fromEmail,
+        fromName: activeMailer.fromName
+      }
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.put('/api/smtp-settings', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const companyId = c.get('companyId');
+    const body = await c.req.json();
+
+    const serviceType = body.service_type === 'custom' ? 'custom' : 'inbuilt';
+    const host = (body.host || '').trim();
+    const port = parseInt(body.port, 10) || 465;
+    const encryption = body.encryption === 'starttls' ? 'starttls' : 'ssl_tls';
+    const username = (body.username || '').trim();
+    const fromEmail = (body.from_email || username).trim();
+    const fromName = (body.from_name || '').trim();
+    const replyTo = (body.reply_to || fromEmail).trim();
+    const newPassword = body.password ? String(body.password).trim() : null;
+
+    const existing = await db.prepare(
+      `SELECT * FROM company_smtp_settings WHERE company_id = ?`
+    ).bind(companyId).first();
+
+    const passwordToSave = newPassword !== null ? newPassword : (existing?.password || '');
+
+    if (existing) {
+      await db.prepare(`
+        UPDATE company_smtp_settings
+        SET service_type = ?, host = ?, port = ?, encryption = ?, username = ?, password = ?, from_email = ?, from_name = ?, reply_to = ?, updated_at = datetime('now')
+        WHERE company_id = ?
+      `).bind(serviceType, host, port, encryption, username, passwordToSave, fromEmail, fromName, replyTo, companyId).run();
+    } else {
+      await db.prepare(`
+        INSERT INTO company_smtp_settings (company_id, service_type, host, port, encryption, username, password, from_email, from_name, reply_to)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(companyId, serviceType, host, port, encryption, username, passwordToSave, fromEmail, fromName, replyTo).run();
+    }
+
+    return c.json({
+      success: true,
+      message: serviceType === 'custom' ? 'Custom SMTP configuration saved successfully' : 'Switched to HisabKhata Inbuilt SMTP Service'
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/smtp-settings/test', authMiddleware, companyScopeMiddleware, async (c) => {
+  let targetEmail = '';
+  try {
+    const db = c.env.DB;
+    const companyId = c.get('companyId');
+    const body = await c.req.json().catch(() => ({}));
+
+    targetEmail = body.to || body.email;
+    if (!targetEmail) {
+      const userId = c.get('userId');
+      const user = await db.prepare(`SELECT email FROM users WHERE id = ?`).bind(userId).first();
+      targetEmail = user?.email;
+    }
+
+    if (!targetEmail) {
+      return c.json({ error: 'Recipient email address is required' }, 400);
+    }
+
+    let mailer;
+    if (body.service_type === 'custom' || body.testCustom) {
+      let pass = body.password ? String(body.password).trim() : '';
+      if (!pass) {
+        const saved = await db.prepare(`SELECT password FROM company_smtp_settings WHERE company_id = ?`).bind(companyId).first();
+        pass = saved?.password || '';
+      }
+      mailer = new SmtpClient({
+        host: body.host || 'smtp.gmail.com',
+        port: parseInt(body.port, 10) || 465,
+        user: (body.username || '').trim(),
+        pass,
+        fromEmail: (body.from_email || body.username || '').trim(),
+        fromName: (body.from_name || 'HisabKhata POS').trim(),
+        replyTo: (body.reply_to || body.from_email || body.username || '').trim(),
+        encryption: body.encryption || 'ssl_tls',
+        serviceType: 'custom'
+      });
+    } else if (body.service_type === 'inbuilt') {
+      mailer = createSmtpClient(c.env);
+    } else {
+      mailer = await resolveSmtpClient(c.env, db, companyId);
+    }
+
+    if (!mailer.isConfigured()) {
+      return c.json({ error: 'SMTP client is not configured with valid credentials' }, 400);
+    }
+
+    const fromAddress = (body.from_email || mailer.fromEmail || mailer.user || '').trim();
+    const { subject, html, text } = buildTestVerificationEmail({
+      host: `${mailer.host}:${mailer.port}`,
+      sender: fromAddress
+    });
+
+    await mailer.sendMail({
+      to: targetEmail,
+      subject,
+      html,
+      text,
+      from: fromAddress,
+      fromName: mailer.fromName,
+      replyTo: mailer.replyTo
+    });
+
+    console.log(`[HisabKhata POS] ✉️ Test mail sent to: ${targetEmail} | Status: Success | Gateway: ${mailer.serviceType}`);
+
+    return c.json({
+      success: true,
+      serviceType: mailer.serviceType,
+      message: `Test email dispatched successfully to ${targetEmail} via ${mailer.serviceType === 'custom' ? `Custom SMTP (${mailer.host})` : 'HisabKhata Inbuilt SMTP'}`
+    });
+  } catch (err) {
+    console.error(`[HisabKhata POS] ✉️ Test mail sent to: ${targetEmail || 'unknown'} | Status: Fail (${err.message})`);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/mail/send', authMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId') || c.req.header('X-Company-ID');
+    const mailer = await resolveSmtpClient(c.env, c.env.DB, companyId);
+    if (!mailer.isConfigured()) {
+      return c.json({ error: 'SMTP is not configured. Please configure SMTP in Settings > SMTP Configurations.' }, 400);
+    }
+
+    const body = await c.req.json();
+    let { to, subject, text, html, template, data, from, fromName, replyTo } = body;
+
+    if (template === 'invoice' && data) {
+      const rendered = buildInvoiceReceiptEmail(data);
+      subject = subject || rendered.subject;
+      html = html || rendered.html;
+      text = text || rendered.text;
+    } else if (template === 'welcome' && data) {
+      const rendered = buildWelcomeEmail(data);
+      subject = subject || rendered.subject;
+      html = html || rendered.html;
+      text = text || rendered.text;
+    } else if (template === 'staff_invitation' && data) {
+      const rendered = buildStaffInvitationEmail(data);
+      subject = subject || rendered.subject;
+      html = html || rendered.html;
+      text = text || rendered.text;
+    }
+
+    if (!to || !subject) {
+      return c.json({ error: 'Recipient (to) and subject are required' }, 400);
+    }
+
+    const res = await mailer.sendMail({ to, subject, text, html, from, fromName, replyTo });
+    return c.json({ success: true, message: 'Email sent successfully', messageId: res.messageId });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/mail/test', authMiddleware, async (c) => {
+  let targetEmail = '';
+  try {
+    const companyId = c.get('companyId') || c.req.header('X-Company-ID');
+    const mailer = await resolveSmtpClient(c.env, c.env.DB, companyId);
+    if (!mailer.isConfigured()) {
+      return c.json({
+        error: 'SMTP is not configured yet. Add credentials in Settings > SMTP Configurations.'
+      }, 400);
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    targetEmail = body.email || body.to;
+    if (!targetEmail) {
+      const userId = c.get('userId');
+      const user = await c.env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(userId).first();
+      targetEmail = user?.email;
+    }
+
+    if (!targetEmail) {
+      return c.json({ error: 'Recipient email address is required' }, 400);
+    }
+
+    const fromAddress = (body.from || body.fromEmail || mailer.fromEmail || mailer.user || '').trim();
+
+    const { subject, html, text } = buildTestVerificationEmail({
+      host: `${mailer.host}:${mailer.port}`,
+      sender: fromAddress
+    });
+
+    await mailer.sendMail({
+      to: targetEmail,
+      subject,
+      html,
+      text,
+      from: fromAddress
+    });
+
+    console.log(`[HisabKhata POS] ✉️ Mail sent to: ${targetEmail} | Status: Success`);
+
+    return c.json({
+      success: true,
+      message: `Test email dispatched successfully to ${targetEmail} from ${fromAddress}`
+    });
+  } catch (err) {
+    console.error(`[HisabKhata POS] ✉️ Mail sent to: ${targetEmail || 'unknown'} | Status: Fail (${err.message})`);
     return c.json({ error: err.message }, 500);
   }
 });
@@ -2176,27 +2568,8 @@ app.delete('/api/invoices/:id', authMiddleware, companyScopeMiddleware, async (c
       }
     }
 
-    if (invoice.party_id && (invoice.balance_due || 0) !== 0 && invoice.type !== 'QUOTATION') {
-      const revertBalanceDelta = invoice.type === 'SALES' ? -(invoice.balance_due || 0) : (invoice.balance_due || 0);
-      stmts.push(
-        db.prepare(`
-          UPDATE parties SET current_balance = current_balance + ?, updated_at=datetime('now')
-          WHERE id = ? AND company_id = ?
-        `).bind(revertBalanceDelta, invoice.party_id, companyId)
-      );
-    }
-
-    const relatedTxns = await db.prepare(`SELECT id, amount, type, party_id FROM transactions WHERE invoice_id = ? AND company_id = ?`).bind(id, companyId).all();
+    const relatedTxns = await db.prepare(`SELECT id FROM transactions WHERE invoice_id = ? AND company_id = ?`).bind(id, companyId).all();
     for (const txn of (relatedTxns?.results || [])) {
-      if (txn.party_id) {
-        const revertTxnDelta = txn.type === 'PAYMENT_IN' ? Number(txn.amount) : -Number(txn.amount);
-        stmts.push(
-          db.prepare(`
-            UPDATE parties SET current_balance = current_balance + ?, updated_at=datetime('now')
-            WHERE id = ? AND company_id = ?
-          `).bind(revertTxnDelta, txn.party_id, companyId)
-        );
-      }
       stmts.push(
         db.prepare(`DELETE FROM transactions WHERE id = ? AND company_id = ?`).bind(txn.id, companyId)
       );
@@ -2210,6 +2583,10 @@ app.delete('/api/invoices/:id', authMiddleware, companyScopeMiddleware, async (c
     );
 
     await db.batch(stmts);
+
+    if (invoice.party_id && invoice.type !== 'QUOTATION') {
+      await reconcilePartyBalance(db, companyId, invoice.party_id);
+    }
 
     return c.json({ success: true });
   } catch (err) {
@@ -2382,13 +2759,7 @@ app.delete('/api/transactions/:id', authMiddleware, companyScopeMiddleware, asyn
 
     const stmts = [];
 
-    const revertPartyDelta = txn.type.toUpperCase() === 'PAYMENT_IN' ? Number(txn.amount) : -Number(txn.amount);
-    stmts.push(
-      db.prepare(`
-        UPDATE parties SET current_balance = current_balance + ?, updated_at = datetime('now')
-        WHERE id = ? AND company_id = ?
-      `).bind(revertPartyDelta, txn.party_id, companyId)
-    );
+    const partyIdForReconcile = txn.party_id;
 
     if (txn.invoice_id) {
       const inv = await db.prepare(`
@@ -2412,6 +2783,11 @@ app.delete('/api/transactions/:id', authMiddleware, companyScopeMiddleware, asyn
     );
 
     await db.batch(stmts);
+
+    if (partyIdForReconcile) {
+      await reconcilePartyBalance(db, companyId, partyIdForReconcile);
+    }
+
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: err.message }, 500);
