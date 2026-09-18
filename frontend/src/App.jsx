@@ -29,6 +29,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Auth />} />
+        <Route path="/signup" element={<Auth defaultIsLogin={false} />} />
         <Route path="/receipt/:id" element={<PublicReceipt />} />
         <Route path="/bill/:id" element={<PublicReceipt />} />
         <Route path="/invoice/:id/print" element={<InvoicePrintA4 />} />

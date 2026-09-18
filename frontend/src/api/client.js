@@ -246,6 +246,7 @@ export const getDayBook = (params = {}) => {
 export const getBackups = () => request('/api/backups');
 export const exportBackup = () => request('/api/backups/export', { method: 'POST' });
 export const getReferrals = () => request('/api/referrals');
+export const validateReferralCode = (code) => request(`/api/referrals/validate?code=${encodeURIComponent(code)}`);
 
 export const getUserProfile = async () => {
   try {

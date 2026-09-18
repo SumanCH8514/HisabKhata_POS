@@ -94,6 +94,8 @@ async function runAutoMigrations(db) {
     `ALTER TABLE companies ADD COLUMN state TEXT`,
     `ALTER TABLE transactions ADD COLUMN invoice_id INTEGER REFERENCES invoices(id)`,
     `CREATE INDEX IF NOT EXISTS idx_transactions_invoice ON transactions(invoice_id)`,
+    `ALTER TABLE referrals ADD COLUMN referred_user_id INTEGER`,
+    `ALTER TABLE referrals ADD COLUMN referred_business_name TEXT`,
     `CREATE TABLE IF NOT EXISTS user_settings (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       settings_json TEXT NOT NULL,
@@ -630,35 +632,47 @@ app.get('/', (c) => {
 app.post('/api/auth/signup', async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password, businessName, is_admin } = body;
+    const { email, password, businessName, referralCode, is_admin } = body;
     if (!email || !password || !businessName) {
       return c.json({ error: 'Email, password, and business name are required' }, 400);
     }
 
     const db = c.env.DB;
-    // Check if user already exists
     const existingUser = await db.prepare(`SELECT id FROM users WHERE email = ?`).bind(email.toLowerCase().trim()).first();
     if (existingUser) {
       return c.json({ error: 'User with this email already exists' }, 400);
     }
 
-    // Hash the password securely
     const hashedPassword = await hashPassword(password);
     const isAdmin = is_admin ? 1 : 0;
 
-    // Insert user
     const userResult = await db.prepare(
       `INSERT INTO users (email, password, is_admin) VALUES (?, ?, ?)`
     ).bind(email.toLowerCase().trim(), hashedPassword, isAdmin).run();
     const userId = userResult.meta.last_row_id;
 
-    // Create default company for this user
     const companyResult = await db.prepare(
       `INSERT INTO companies (user_id, name, email) VALUES (?, ?, ?)`
     ).bind(userId, businessName, email.toLowerCase().trim()).run();
     const companyId = companyResult.meta.last_row_id;
 
-    // Generate JWT token
+    if (referralCode && typeof referralCode === 'string') {
+      const cleanCode = referralCode.trim().toUpperCase();
+      const match = cleanCode.match(/^HK-([0-9A-Z]+)-POS$/i);
+      if (match) {
+        const referrerUserId = parseInt(match[1], 36);
+        if (!isNaN(referrerUserId) && referrerUserId > 0 && referrerUserId !== userId) {
+          const referrerUser = await db.prepare('SELECT id FROM users WHERE id = ?').bind(referrerUserId).first();
+          if (referrerUser) {
+            await db.prepare(`
+              INSERT INTO referrals (referrer_user_id, referral_code, referred_email, referred_user_id, referred_business_name, status, reward_status)
+              VALUES (?, ?, ?, ?, ?, 'joined', '1 Month Free Pro')
+            `).bind(referrerUserId, cleanCode, email.toLowerCase().trim(), userId, businessName.trim()).run();
+          }
+        }
+      }
+    }
+
     const token = await sign({ userId, isAdmin: isAdmin === 1 }, c.env.JWT_SECRET || JWT_SECRET, 'HS256');
 
     return c.json({
@@ -2312,6 +2326,41 @@ app.post('/api/backups/export', authMiddleware, companyScopeMiddleware, async (c
     `).bind(companyId, r2Key, filename, jsonStr.length).run();
 
     return c.json({ success: true, filename, url: `https://cdn.r2.sumanonline.com/${r2Key}` });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/referrals/validate', async (c) => {
+  try {
+    const rawCode = c.req.query('code') || '';
+    const code = rawCode.trim().toUpperCase();
+    if (!code) {
+      return c.json({ valid: false, error: 'Referral code is required' }, 400);
+    }
+    const match = code.match(/^HK-([0-9A-Z]+)-POS$/i);
+    if (!match) {
+      return c.json({ valid: false, error: 'Invalid referral code format' }, 400);
+    }
+    const referrerUserId = parseInt(match[1], 36);
+    if (isNaN(referrerUserId) || referrerUserId <= 0) {
+      return c.json({ valid: false, error: 'Invalid referral code' }, 400);
+    }
+    const db = c.env.DB;
+    const user = await db.prepare('SELECT id, name, email FROM users WHERE id = ?').bind(referrerUserId).first();
+    if (!user) {
+      return c.json({ valid: false, error: 'Referrer not found' }, 404);
+    }
+    const company = await db.prepare('SELECT name FROM companies WHERE user_id = ? ORDER BY id ASC LIMIT 1').bind(referrerUserId).first();
+    const refereeName = company?.name || user.name || user.email.split('@')[0] || 'Merchant Partner';
+    return c.json({
+      valid: true,
+      code,
+      referrerUserId: user.id,
+      refereeName,
+      ownerName: user.name || '',
+      businessName: company?.name || refereeName
+    });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }

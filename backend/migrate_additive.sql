@@ -73,13 +73,15 @@ CREATE TABLE IF NOT EXISTS backups (
 );
 
 CREATE TABLE IF NOT EXISTS referrals (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  referrer_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  referral_code     TEXT    NOT NULL,
-  referred_email    TEXT,
-  status            TEXT    NOT NULL DEFAULT 'pending',
-  reward_status     TEXT    NOT NULL DEFAULT 'unclaimed',
-  created_at        TEXT    DEFAULT (datetime('now'))
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  referrer_user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  referral_code           TEXT    NOT NULL,
+  referred_email          TEXT,
+  referred_user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  referred_business_name  TEXT,
+  status                  TEXT    NOT NULL DEFAULT 'pending',
+  reward_status           TEXT    NOT NULL DEFAULT 'unclaimed',
+  created_at              TEXT    DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_fund_accounts_co ON fund_accounts(company_id);

@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Mail, Lock, User, Briefcase, Eye, EyeOff,
   ArrowRight, Sun, Moon, ArrowLeft, Laptop, Menu, X,
-  LogIn, LayoutDashboard
+  LogIn, LayoutDashboard, Gift, CheckCircle2, AlertCircle, Loader2, Tag
 } from 'lucide-react';
-import { login, signup } from '../api/client.js';
+import { login, signup, validateReferralCode } from '../api/client.js';
 import logoDark from '../assets/logo_dark_mode.png';
 import logoLight from '../assets/logo_light_mode.png';
 import { useTheme } from '../utils/theme.js';
 
-export default function Auth() {
+export default function Auth({ defaultIsLogin = true }) {
   const navigate = useNavigate();
-  const [isLogin, setIsLogin] = useState(true);
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const refCodeFromQuery = (searchParams.get('ref') || '').trim().toUpperCase();
+  const isSignupRoute = location.pathname.toLowerCase().startsWith('/signup') || !!refCodeFromQuery;
+
+  const [isLogin, setIsLogin] = useState(!isSignupRoute && defaultIsLogin);
+  const [referralCode, setReferralCode] = useState(refCodeFromQuery);
+  const [referrerInfo, setReferrerInfo] = useState(null);
+  const [referrerLoading, setReferrerLoading] = useState(false);
+  const [referrerError, setReferrerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +43,35 @@ export default function Auth() {
       localStorage.setItem('hide_announcement_banner', 'true');
     } catch {}
   };
+
+  useEffect(() => {
+    const codeToValidate = refCodeFromQuery || referralCode;
+    if (codeToValidate) {
+      if (refCodeFromQuery) {
+        setIsLogin(false);
+        setReferralCode(refCodeFromQuery);
+      }
+      setReferrerLoading(true);
+      setReferrerError('');
+      validateReferralCode(codeToValidate)
+        .then((res) => {
+          if (res?.valid) {
+            setReferrerInfo(res);
+            setReferrerError('');
+          } else {
+            setReferrerInfo(null);
+            setReferrerError(res?.error || 'Referral invitation not found');
+          }
+        })
+        .catch((err) => {
+          setReferrerInfo(null);
+          setReferrerError(err.message || 'Invalid or expired referral code');
+        })
+        .finally(() => {
+          setReferrerLoading(false);
+        });
+    }
+  }, [refCodeFromQuery]);
 
   useEffect(() => {
     if (localStorage.getItem('isAuthenticated') === 'true') {
@@ -71,7 +109,8 @@ export default function Auth() {
         const res = await signup({
           email: form.email,
           password: form.password,
-          businessName: form.businessName || 'Your Company Name'
+          businessName: form.businessName || 'Your Company Name',
+          referralCode: (referralCode || refCodeFromQuery || '').trim() || undefined
         });
 
         localStorage.setItem('token', res.token);
@@ -307,6 +346,46 @@ export default function Auth() {
             </button>
           </div>
 
+          {referrerLoading && (
+            <div className="mb-5 p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300 flex items-center gap-2 text-xs font-semibold animate-pulse">
+              <Loader2 size={16} className="animate-spin text-emerald-600 dark:text-emerald-400" />
+              <span>Checking referral invitation ({referralCode})...</span>
+            </div>
+          )}
+
+          {referrerInfo && (
+            <div className="mb-5 p-4 sm:p-4.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-emerald-500/15 border border-emerald-500/30 dark:border-emerald-500/20 text-slate-800 dark:text-slate-100 shadow-sm relative overflow-hidden">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/30">
+                  <Gift size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-xs">
+                      VIP Referral Invitation
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                      {referrerInfo.code}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-snug">
+                    Invited by <span className="text-emerald-600 dark:text-emerald-400 font-black">{referrerInfo.refereeName || referrerInfo.businessName}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-normal">
+                    Sign up to activate your store and unlock 1 Month Free Pro perks courtesy of {referrerInfo.refereeName || referrerInfo.businessName}.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {referrerError && !isLogin && (
+            <div className="mb-5 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>{referrerError}</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-2xl text-xs font-semibold">
               {error}
@@ -397,23 +476,76 @@ export default function Auth() {
             </div>
 
             {!isLogin && (
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Confirm Password</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-                    <Lock size={16} />
-                  </span>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="confirmPassword"
-                    value={form.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
-                    required={!isLogin}
-                  />
+              <>
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Confirm Password</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                      <Lock size={16} />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={form.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-4 py-3 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                      required={!isLogin}
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Referral Code (Optional)</label>
+                    {referrerInfo && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 size={12} /> {referrerInfo.refereeName}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                      <Tag size={16} />
+                    </span>
+                    <input
+                      type="text"
+                      name="referralCode"
+                      value={referralCode}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setReferralCode(val);
+                        if (!val) {
+                          setReferrerInfo(null);
+                          setReferrerError('');
+                        }
+                      }}
+                      onBlur={() => {
+                        if (referralCode && !referrerInfo) {
+                          setReferrerLoading(true);
+                          validateReferralCode(referralCode)
+                            .then((res) => {
+                              if (res?.valid) {
+                                setReferrerInfo(res);
+                                setReferrerError('');
+                              } else {
+                                setReferrerInfo(null);
+                                setReferrerError(res?.error || 'Invalid referral code');
+                              }
+                            })
+                            .catch((err) => {
+                              setReferrerInfo(null);
+                              setReferrerError(err.message || 'Invalid referral code');
+                            })
+                            .finally(() => setReferrerLoading(false));
+                        }
+                      }}
+                      placeholder="e.g. HK-4-POS"
+                      className="w-full pl-10 pr-4 py-3 text-sm font-mono uppercase bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:border-[#4c3cce] dark:focus:border-purple-500 text-slate-900 dark:text-white transition-all placeholder-slate-400"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <button

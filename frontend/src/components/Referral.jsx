@@ -49,7 +49,7 @@ export default function Referral() {
 
           <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2 text-xs font-mono truncate">
-              {data.referralLink || 'https://pos.hisabkhata.sumanonline.com/signup?ref=HK-POS'}
+              {data.referralLink || (data.referralCode ? `https://pos.hisabkhata.sumanonline.com/signup?ref=${data.referralCode}` : 'https://pos.hisabkhata.sumanonline.com/signup?ref=HK-POS')}
             </div>
             <button
               onClick={handleCopy}
@@ -91,7 +91,16 @@ export default function Referral() {
               <tbody className="divide-y divide-slate-100">
                 {data.referrals.map(r => (
                   <tr key={r.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 font-bold text-slate-800">{r.referred_email || 'New Merchant'}</td>
+                    <td className="py-2.5">
+                      {r.referred_business_name ? (
+                        <div>
+                          <div className="font-bold text-slate-900">{r.referred_business_name}</div>
+                          <div className="text-[11px] font-normal text-slate-400">{r.referred_email}</div>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-slate-800">{r.referred_email || 'New Merchant'}</span>
+                      )}
+                    </td>
                     <td className="py-2.5">
                       <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">
                         {r.status}
