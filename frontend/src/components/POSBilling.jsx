@@ -230,6 +230,58 @@ export default function POSBilling() {
     localStorage.setItem('hk_pos_party', JSON.stringify(selectedParty));
   }, [selectedParty]);
 
+  const handleFastAddCustomer = async (searchVal) => {
+    const val = (searchVal || partySearch || '').trim();
+    if (!val) return;
+    const hasDigits = /\d/.test(val);
+    const phoneVal = hasDigits ? val : '';
+    setSavingCustomer(true);
+    setCustomerError('');
+    try {
+      const res = await createParty({
+        name: val,
+        phone: phoneVal,
+        address: '',
+        gst_number: '',
+        type: 'CUSTOMER'
+      });
+      const created = {
+        id: res?.id || Date.now(),
+        name: val,
+        phone: phoneVal,
+        address: '',
+        type: 'CUSTOMER'
+      };
+      setParties(prev => [created, ...prev]);
+      setSelectedParty(created);
+      setShowPartySelect(false);
+      setPartySearch('');
+      try {
+        const cached = JSON.parse(localStorage.getItem('hk_pos_cached_parties') || '[]');
+        localStorage.setItem('hk_pos_cached_parties', JSON.stringify([created, ...cached]));
+      } catch { }
+    } catch (err) {
+      alert(err.message || 'Failed to quickly add customer');
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
+  const handleOpenAddDetails = (searchVal) => {
+    const val = (searchVal || partySearch || '').trim();
+    const hasDigits = /\d/.test(val);
+    const phoneVal = hasDigits ? val : '';
+    setNewCustomerForm({
+      name: val,
+      phone: phoneVal,
+      address: '',
+      gst_number: ''
+    });
+    setCustomerError('');
+    setShowAddCustomerModal(true);
+    setShowPartySelect(false);
+  };
+
   const handleQuickCreateCustomer = async (e) => {
     if (e) e.preventDefault();
     if (!newCustomerForm.name.trim()) {
@@ -258,6 +310,10 @@ export default function POSBilling() {
       setShowPartySelect(false);
       setShowAddCustomerModal(false);
       setNewCustomerForm({ name: '', phone: '', address: '', gst_number: '' });
+      try {
+        const cached = JSON.parse(localStorage.getItem('hk_pos_cached_parties') || '[]');
+        localStorage.setItem('hk_pos_cached_parties', JSON.stringify([created, ...cached]));
+      } catch { }
     } catch (err) {
       setCustomerError(err.message || 'Failed to create customer');
     } finally {
@@ -756,11 +812,7 @@ export default function POSBilling() {
                     <span className="text-[11px] font-extrabold text-slate-900">Select Customer</span>
                     <button
                       type="button"
-                      onClick={() => {
-                        setNewCustomerForm({ name: partySearch.trim(), phone: '', address: '', gst_number: '' });
-                        setCustomerError('');
-                        setShowAddCustomerModal(true);
-                      }}
+                      onClick={() => handleOpenAddDetails(partySearch)}
                       className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
                     >
                       <UserPlus size={12} />
@@ -775,6 +827,18 @@ export default function POSBilling() {
                       placeholder="Search by name or phone…"
                       value={partySearch}
                       onChange={(e) => setPartySearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const matched = parties.filter(p => (p.name || '').toLowerCase().includes(partySearch.toLowerCase()) || (p.phone || '').includes(partySearch));
+                          if (matched.length === 1) {
+                            setSelectedParty(matched[0]);
+                            setShowPartySelect(false);
+                          } else if (matched.length === 0 && partySearch.trim()) {
+                            handleFastAddCustomer(partySearch);
+                          }
+                        }
+                      }}
                       autoFocus
                       className="w-full pl-7 pr-7 py-1 text-xs border border-slate-200 rounded-lg outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white transition-all"
                     />
@@ -826,20 +890,28 @@ export default function POSBilling() {
                       })}
 
                     {partySearch.trim() && parties.filter(p => (p.name || '').toLowerCase().includes(partySearch.toLowerCase()) || (p.phone || '').includes(partySearch)).length === 0 && (
-                      <div className="p-3 text-center">
-                        <p className="text-[11px] text-slate-400 mb-2">No customer found for "{partySearch}"</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewCustomerForm({ name: partySearch.trim(), phone: '', address: '', gst_number: '' });
-                            setCustomerError('');
-                            setShowAddCustomerModal(true);
-                          }}
-                          className="w-full py-1.5 px-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
-                        >
-                          <UserPlus size={12} />
-                          <span>Add "{partySearch}"</span>
-                        </button>
+                      <div className="p-2.5 text-center space-y-2 bg-slate-50 rounded-xl mt-1 border border-slate-100">
+                        <p className="text-[11px] text-slate-500 font-medium">No customer found for "{partySearch}"</p>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={savingCustomer}
+                            onClick={() => handleFastAddCustomer(partySearch)}
+                            className="flex-1 py-1.5 px-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all shadow-xs disabled:opacity-50"
+                          >
+                            <Zap size={12} className="text-amber-300 fill-amber-300" />
+                            <span>{savingCustomer ? 'Adding…' : 'Add Fast'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddDetails(partySearch)}
+                            className="flex-1 py-1.5 px-2 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 active:scale-[0.98] rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
+                          >
+                            <UserPlus size={12} />
+                            <span>Add Details</span>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Add Fast saves directly without popup</p>
                       </div>
                     )}
                   </div>
