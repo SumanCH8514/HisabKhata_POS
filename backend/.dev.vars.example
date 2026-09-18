@@ -1,0 +1,5 @@
+# Cloudflare Worker local development variables (.dev.vars)
+# In production, set secrets via Cloudflare Dashboard or:
+# npx wrangler secret put JWT_SECRET
+
+JWT_SECRET=your_super_secret_jwt_key_min_32_characters_here

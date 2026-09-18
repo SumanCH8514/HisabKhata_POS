@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>HisabKhata POS — GST Billing, Inventory &amp; Khata Ledger</title>
+
+  <meta name="description"
+    content="HisabKhata POS is a modern, fast, web-based Point of Sale (POS) and HisabKhata inventory management software. Featuring GST billing, barcode scanning, customer &amp; HisabKhata ledgers, multi-currency support, and thermal receipt printing." />
+  <meta name="keywords"
+    content="HisabKhata POS, POS software, GST billing, inventory management, retail billing, thermal invoice, barcode scanner, khata ledger, day book, small business ERP" />
+  <meta name="author" content="HisabKhata" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="theme-color" content="#10b981" />
+  <link rel="canonical" href="https://pos.hisabkhata.sumanonline.com/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://pos.hisabkhata.sumanonline.com/" />
+  <meta property="og:title" content="HisabKhata POS — High-Speed GST Billing &amp; Inventory Management" />
+  <meta property="og:description"
+    content="Fast counter billing, barcode scanning, party credit ledger, multi-currency support, thermal receipt printing, and live financial reports for retail &amp; wholesale merchants." />
+  <meta property="og:image" content="https://pos.hisabkhata.sumanonline.com/favicon.svg" />
+  <meta property="og:site_name" content="HisabKhata POS" />
+  <meta property="og:locale" content="en_IN" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://pos.hisabkhata.sumanonline.com/" />
+  <meta name="twitter:title" content="HisabKhata POS — High-Speed GST Billing &amp; Inventory Management" />
+  <meta name="twitter:description"
+    content="Fast counter billing, barcode scanning, party credit ledger, multi-currency support, thermal receipt printing, and live financial reports for retail &amp; wholesale merchants." />
+  <meta name="twitter:image" content="https://pos.hisabkhata.sumanonline.com/favicon.svg" />
+
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="HisabKhata POS" />
+  <meta name="application-name" content="HisabKhata POS" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "HisabKhata POS",
+    "operatingSystem": "All (Web-based)",
+    "applicationCategory": "BusinessApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "INR"
+    },
+    "description": "HisabKhata POS is India's free billing software, udhaar book and shop management platform for local businesses",
+    "publisher": {
+      "@type": "Organization",
+      "name": "SumanOnline",
+      "url": "https://sumanonline.com"
+    }
+  }
+  </script>
+
+  <script>
+    (function () {
+      const theme = localStorage.getItem('theme') || 'system';
+      const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (dark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
+</head>
+
+<body class="bg-[#f6f8fa] text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>

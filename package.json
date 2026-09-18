@@ -1,0 +1,13 @@
+{
+  "name": "hisabkhata-pos-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "install:all": "npm install && npm install --prefix frontend",
+    "db:migrate": "npm run db:migrate --prefix backend"
+  },
+  "devDependencies": {
+    "wrangler": "^4.134.0"
+  }
+}

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /login
+Disallow: /api/
+Disallow: /invoice/
+
+Sitemap: https://pos.hisabkhata.sumanonline.com/sitemap.xml

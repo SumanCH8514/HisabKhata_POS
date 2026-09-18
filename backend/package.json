@@ -1,0 +1,19 @@
+{
+  "name": "hisabkhata-pos-backend",
+  "version": "1.0.0",
+  "description": "HisabKhata POS — Cloudflare Worker Backend (Hono.js)",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:remote": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 execute hisabkhata-pos_d1_db --local --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute hisabkhata-pos_d1_db --remote --file=./schema.sql"
+  },
+  "dependencies": {
+    "hono": "^4.4.11"
+  },
+  "devDependencies": {
+    "wrangler": "^3.67.0"
+  }
+}

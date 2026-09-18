@@ -1,0 +1,115 @@
+# =============================================================================
+# HisabKhata POS — Comprehensive .gitignore
+# Production-grade protection against credentials, caches, builds, and keys
+# =============================================================================
+
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs & Production Bundles
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+build/
+**/build/
+out/
+.next/
+.cache/
+instructions.md
+
+
+# Cloudflare Wrangler & Miniflare Local State
+.wrangler/
+**/.wrangler/
+.mf/
+**/.mf/
+wrangler.log*
+
+# Environment Variables & Secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+.dev.vars
+.dev.vars.*
+**/.dev.vars
+**/.dev.vars.*
+!.dev.vars.example
+!**/.dev.vars.example
+
+# Credentials & API Keys
+credentials.json
+client_secret*.json
+service-account*.json
+token.json
+*.token
+
+# Cryptographic Keys & SSL Certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*id_rsa*
+*id_ecdsa*
+*id_ed25519*
+
+# SQLite & Local Databases
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Internal Specs, Instructions & Scratch Files
+instructions.md
+PRD-HisabKhata-POS.md
+.tempmediaStorage/
+.user_uploaded/
+scratch/
+*.scratch
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE & Editor Configurations
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Tooling & Agentic Artifacts
+.gemini/
+.agents/
