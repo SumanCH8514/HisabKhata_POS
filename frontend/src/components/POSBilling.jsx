@@ -649,7 +649,7 @@ export default function POSBilling() {
             </div>
           </div>
 
-          <div className={`flex-1 overflow-y-auto pr-1 grid ${isFullscreen ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'} gap-1.5 content-start min-h-0 select-none`}>
+          <div className={`flex-1 overflow-y-auto pr-1 grid ${isFullscreen ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'} gap-1.5 content-start auto-rows-max min-h-0 select-none`}>
             {loading && items.length === 0 ? (
               Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="bg-white border border-slate-100 rounded-lg p-1.5 flex flex-col gap-2 animate-pulse">
@@ -684,7 +684,7 @@ export default function POSBilling() {
                   }, 400);
                 }}
                 onMouseLeave={() => { clearTimeout(hoverTimer.current); setHoveredItem(null); }}
-                className="bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md rounded-lg text-left transition-all flex flex-col overflow-hidden group cursor-pointer relative max-lg:select-none max-lg:touch-manipulation"
+                className="bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md rounded-lg text-left transition-all flex flex-col overflow-hidden group cursor-pointer relative max-lg:select-none max-lg:touch-manipulation min-h-[118px] shrink-0"
               >
                 <div className="relative w-full h-[72px] bg-white overflow-hidden shrink-0 border-b border-slate-100">
                   {item.image_url ? (
@@ -720,7 +720,7 @@ export default function POSBilling() {
                   </div>
                 </div>
 
-                <div className="px-1.5 py-1 flex flex-col gap-0.5">
+                <div className="px-1.5 py-1 flex flex-col gap-0.5 shrink-0 min-h-[46px] justify-between">
                   <span className="text-[10px] font-semibold text-slate-800 line-clamp-1 leading-tight group-hover:text-emerald-700 transition-colors">
                     {item.name}
                   </span>
@@ -745,7 +745,22 @@ export default function POSBilling() {
 
         </div>
 
-        <div className={`${isFullscreen ? 'lg:col-span-4 2xl:col-span-3' : 'lg:col-span-4'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-col max-lg:mt-auto ${mobileCartState === 'full' ? 'max-lg:flex-1 max-lg:h-full max-lg:min-h-0 max-lg:overflow-y-auto' : mobileCartState === 'half' ? 'max-lg:h-auto max-lg:max-h-[85vh] max-lg:overflow-y-auto max-lg:shrink-0' : 'max-lg:h-auto max-lg:shrink-0'} min-h-0 overflow-hidden`}>
+        {mobileCartState !== 'collapsed' && (
+          <div
+            className="lg:hidden fixed inset-0 bg-slate-950/40 backdrop-blur-2xs z-40 animate-fade-in cursor-pointer"
+            onClick={() => setMobileCartState('collapsed')}
+          />
+        )}
+
+        {mobileCartState !== 'collapsed' && (
+          <div className="lg:hidden h-[180px] shrink-0 pointer-events-none" />
+        )}
+
+        <div className={`${isFullscreen ? 'lg:col-span-4 2xl:col-span-3' : 'lg:col-span-4'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-col ${
+          mobileCartState !== 'collapsed'
+            ? 'max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50 max-lg:rounded-t-2xl max-lg:shadow-2xl max-lg:border-t max-lg:border-slate-300 dark:max-lg:border-slate-700 max-lg:max-h-[82vh] max-lg:overflow-y-auto'
+            : 'max-lg:mt-auto max-lg:h-auto max-lg:shrink-0'
+        } min-h-0 overflow-hidden`}>
 
           <div
             onTouchStart={handleTouchStart}
@@ -920,7 +935,7 @@ export default function POSBilling() {
             </div>
           </div>
 
-          <div className={`${mobileCartState === 'collapsed' ? 'max-lg:hidden' : mobileCartState === 'half' ? 'max-lg:block max-lg:max-h-[190px] max-lg:overflow-y-auto' : 'max-lg:block max-lg:flex-1 max-lg:overflow-y-auto'} flex-1 overflow-y-auto pr-0.5 space-y-1 my-1.5 min-h-0`}>
+          <div className={`${mobileCartState === 'collapsed' ? 'max-lg:hidden' : mobileCartState === 'half' ? 'max-lg:block max-lg:max-h-[220px] max-lg:overflow-y-auto' : 'max-lg:block max-lg:flex-1 max-lg:overflow-y-auto'} flex-1 overflow-y-auto pr-0.5 space-y-1 my-1.5 min-h-0`}>
             {cart.map((line, idx) => {
               const lineTotal = isInclusive
                 ? line.quantity * line.rate
