@@ -102,7 +102,9 @@ export default function CompanyProfile() {
   const [savedToast, setSavedToast] = useState(false);
   const [error, setError] = useState(null);
   const [gstVerified, setGstVerified] = useState(false);
-  const [uploading, setUploading] = useState({ logo: false, signature: false, letterhead: false });
+  const [pendingFiles, setPendingFiles] = useState({ logo: null, signature: null, letterhead: null });
+  const [previewUrls, setPreviewUrls] = useState({ logo: null, signature: null, letterhead: null });
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationSuccess, setLocationSuccess] = useState(false);
 
@@ -289,24 +291,38 @@ export default function CompanyProfile() {
     });
   };
 
-  const handleUpload = async (e, field) => {
+  const handleSelectFile = (e, field) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setError(null);
-    setUploading(u => ({ ...u, [field]: true }));
-    try {
-      const res = await uploadFile(file, field);
-      if (res?.url) {
-        setForm(f => ({ ...f, [`${field}_url`]: res.url }));
-        window.dispatchEvent(new Event('company_profile_updated'));
-      }
-    } catch (err) {
-      setError(err.message || `Failed to upload ${field}`);
-    } finally {
-      setUploading(u => ({ ...u, [field]: false }));
+    if (previewUrls[field] && previewUrls[field].startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrls[field]);
     }
+    const blobUrl = URL.createObjectURL(file);
+    setPendingFiles(prev => ({ ...prev, [field]: file }));
+    setPreviewUrls(prev => ({ ...prev, [field]: blobUrl }));
+    e.target.value = '';
   };
+
+  const handleRemoveFile = (field) => {
+    if (previewUrls[field] && previewUrls[field].startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrls[field]);
+    }
+    setPendingFiles(prev => ({ ...prev, [field]: null }));
+    setPreviewUrls(prev => ({ ...prev, [field]: null }));
+    setForm(f => ({ ...f, [`${field}_url`]: '' }));
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewUrls).forEach(url => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [previewUrls]);
 
   const handleSave = async (e) => {
     if (e) e.preventDefault();
@@ -315,6 +331,27 @@ export default function CompanyProfile() {
     setSaving(true);
     setError(null);
     try {
+      let finalLogoUrl = form.logo_url;
+      let finalSignatureUrl = form.signature_url;
+      let finalLetterheadUrl = form.letterhead_url;
+
+      const fieldsToUpload = Object.keys(pendingFiles).filter(k => pendingFiles[k]);
+      if (fieldsToUpload.length > 0) {
+        setUploadingFiles(true);
+        for (const field of fieldsToUpload) {
+          const file = pendingFiles[field];
+          const res = await uploadFile(file, field);
+          if (res?.url) {
+            if (field === 'logo') finalLogoUrl = res.url;
+            else if (field === 'signature') finalSignatureUrl = res.url;
+            else if (field === 'letterhead') finalLetterheadUrl = res.url;
+          } else {
+            throw new Error(res?.error || `Failed to upload ${field}`);
+          }
+        }
+        setUploadingFiles(false);
+      }
+
       const fullAddress = [form.building, form.street, form.city, form.pincode].filter(Boolean).join(', ');
       const finalPhone = phoneDigits.trim() ? `${countryCode} ${phoneDigits.trim()}` : '';
 
@@ -327,13 +364,27 @@ export default function CompanyProfile() {
         state: form.state_code,
         state_code: form.state_code,
         address: fullAddress,
-        logo_url: form.logo_url || null,
-        signature_url: form.signature_url || null,
-        letterhead_url: form.letterhead_url || null,
+        logo_url: finalLogoUrl || null,
+        signature_url: finalSignatureUrl || null,
+        letterhead_url: finalLetterheadUrl || null,
         upi_id: form.upi_id.trim() || null
       };
 
       await updateCompany(payload);
+
+      Object.values(previewUrls).forEach(url => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      setPendingFiles({ logo: null, signature: null, letterhead: null });
+      setPreviewUrls({ logo: null, signature: null, letterhead: null });
+      setForm(f => ({
+        ...f,
+        logo_url: finalLogoUrl || '',
+        signature_url: finalSignatureUrl || '',
+        letterhead_url: finalLetterheadUrl || ''
+      }));
 
       try {
         const cached = JSON.parse(localStorage.getItem('cached_company') || '{}');
@@ -348,6 +399,7 @@ export default function CompanyProfile() {
       setError(err.message || 'Failed to update company profile');
       toast.error(err.message || 'Failed to update company profile');
     } finally {
+      setUploadingFiles(false);
       setSaving(false);
     }
   };
@@ -411,32 +463,39 @@ export default function CompanyProfile() {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs text-center space-y-4">
             <div className="relative w-28 h-28 mx-auto">
               <div className="w-full h-full rounded-2xl border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center shadow-xs">
-                {form.logo_url ? (
-                  <img src={form.logo_url} alt="Company Logo" className="w-full h-full object-cover" />
+                {(previewUrls.logo || form.logo_url) ? (
+                  <img src={previewUrls.logo || form.logo_url} alt="Company Logo" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-3xl font-black text-slate-400">{companyInitials}</span>
                 )}
               </div>
 
+              {(previewUrls.logo || form.logo_url) && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile('logo')}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer z-10"
+                  title="Remove Logo"
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
-                disabled={uploading.logo}
-                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white flex items-center justify-center shadow-md transition-all cursor-pointer"
+                disabled={saving || uploadingFiles}
+                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white flex items-center justify-center shadow-md transition-all cursor-pointer disabled:opacity-50"
                 title="Upload Company Logo"
               >
-                {uploading.logo ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Camera size={16} />
-                )}
+                <Camera size={16} />
               </button>
 
               <input
                 ref={logoInputRef}
                 type="file"
                 accept="image/*"
-                onChange={e => handleUpload(e, 'logo')}
+                onChange={e => handleSelectFile(e, 'logo')}
                 className="hidden"
               />
             </div>
@@ -472,10 +531,10 @@ export default function CompanyProfile() {
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Authorized Signature</span>
-              {form.signature_url && (
+              {(previewUrls.signature || form.signature_url) && (
                 <button
                   type="button"
-                  onClick={() => setForm(f => ({ ...f, signature_url: '' }))}
+                  onClick={() => handleRemoveFile('signature')}
                   className="text-[11px] font-bold text-rose-500 hover:text-rose-600 cursor-pointer"
                 >
                   Remove
@@ -487,10 +546,8 @@ export default function CompanyProfile() {
               onClick={() => signatureInputRef.current?.click()}
               className="w-full h-20 border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl overflow-hidden cursor-pointer transition-colors bg-slate-50 flex items-center justify-center relative p-2"
             >
-              {uploading.signature ? (
-                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              ) : form.signature_url ? (
-                <img src={form.signature_url} alt="Signature" className="max-h-full max-w-full object-contain" />
+              {(previewUrls.signature || form.signature_url) ? (
+                <img src={previewUrls.signature || form.signature_url} alt="Signature" className="max-h-full max-w-full object-contain" />
               ) : (
                 <div className="text-center">
                   <Upload size={18} className="text-slate-400 mx-auto mb-1" />
@@ -502,7 +559,7 @@ export default function CompanyProfile() {
               ref={signatureInputRef}
               type="file"
               accept="image/*"
-              onChange={e => handleUpload(e, 'signature')}
+              onChange={e => handleSelectFile(e, 'signature')}
               className="hidden"
             />
           </div>
@@ -510,10 +567,10 @@ export default function CompanyProfile() {
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Letterhead / Header</span>
-              {form.letterhead_url && (
+              {(previewUrls.letterhead || form.letterhead_url) && (
                 <button
                   type="button"
-                  onClick={() => setForm(f => ({ ...f, letterhead_url: '' }))}
+                  onClick={() => handleRemoveFile('letterhead')}
                   className="text-[11px] font-bold text-rose-500 hover:text-rose-600 cursor-pointer"
                 >
                   Remove
@@ -525,10 +582,8 @@ export default function CompanyProfile() {
               onClick={() => letterheadInputRef.current?.click()}
               className="w-full h-24 border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl overflow-hidden cursor-pointer transition-colors bg-slate-50 flex items-center justify-center relative p-2"
             >
-              {uploading.letterhead ? (
-                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              ) : form.letterhead_url ? (
-                <img src={form.letterhead_url} alt="Letterhead" className="max-h-full max-w-full object-cover rounded-lg" />
+              {(previewUrls.letterhead || form.letterhead_url) ? (
+                <img src={previewUrls.letterhead || form.letterhead_url} alt="Letterhead" className="max-h-full max-w-full object-cover rounded-lg" />
               ) : (
                 <div className="text-center">
                   <ImageIcon size={20} className="text-slate-400 mx-auto mb-1" />
@@ -541,7 +596,7 @@ export default function CompanyProfile() {
               ref={letterheadInputRef}
               type="file"
               accept="image/*"
-              onChange={e => handleUpload(e, 'letterhead')}
+              onChange={e => handleSelectFile(e, 'letterhead')}
               className="hidden"
             />
           </div>
@@ -842,11 +897,15 @@ export default function CompanyProfile() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || uploadingFiles}
                   className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-6 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 rounded-lg shadow-sm transition-all cursor-pointer"
                 >
-                  <Save size={14} strokeWidth={2.5} />
-                  <span>{saving ? 'Updating Details…' : 'Save Details'}</span>
+                  {saving || uploadingFiles ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Save size={14} strokeWidth={2.5} />
+                  )}
+                  <span>{uploadingFiles ? 'Uploading Media…' : saving ? 'Updating Details…' : 'Save Details'}</span>
                 </button>
               </div>
             </div>

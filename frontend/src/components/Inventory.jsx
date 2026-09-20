@@ -210,6 +210,8 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   const [saving, setSaving]       = useState(false);
   const [savingNew, setSavingNew] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(form.image_url || null);
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError]         = useState(null);
   const photoInputRef = useRef(null);
@@ -254,21 +256,33 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleUploadImageFile = async (file) => {
+  const handleSelectImageFile = (file) => {
     if (!file || !file.type?.startsWith('image/')) return;
-    setUploadingPhoto(true);
     setError(null);
-    try {
-      const res = await uploadFile(file, 'item');
-      if (res.url) {
-        set('image_url', res.url);
-      }
-    } catch (err) {
-      setError(err.message || 'Upload failed');
-    } finally {
-      setUploadingPhoto(false);
+    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreviewUrl);
     }
+    const previewUrl = URL.createObjectURL(file);
+    setPendingImageFile(file);
+    setImagePreviewUrl(previewUrl);
   };
+
+  const handleRemovePhoto = () => {
+    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setPendingImageFile(null);
+    setImagePreviewUrl(null);
+    set('image_url', null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
 
   useEffect(() => {
     const handlePaste = (e) => {
@@ -280,7 +294,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
           const file = it.getAsFile();
           if (file) {
             e.preventDefault();
-            handleUploadImageFile(file);
+            handleSelectImageFile(file);
             break;
           }
         }
@@ -289,7 +303,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, []);
+  }, [imagePreviewUrl]);
 
   useEffect(() => {
     const mrpNum = parseFloat(form.mrp) || 0;
@@ -474,9 +488,21 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
     keepOpen ? setSavingNew(true) : setSaving(true);
     setError(null);
     try {
+      let finalImageUrl = form.image_url;
+      if (pendingImageFile) {
+        setUploadingPhoto(true);
+        const res = await uploadFile(pendingImageFile, 'item');
+        if (res && res.url) {
+          finalImageUrl = res.url;
+        } else {
+          throw new Error(res?.error || 'Failed to upload item photo');
+        }
+      }
+
       if (isEdit) {
         await updateItem(item.id, { 
           ...form, 
+          image_url: finalImageUrl,
           tax_type: saleTaxType,
           sale_tax_type: saleTaxType,
           purchase_tax_type: purchaseTaxType,
@@ -490,6 +516,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
       } else {
         await createItem({ 
           ...form, 
+          image_url: finalImageUrl,
           tax_type: saleTaxType,
           sale_tax_type: saleTaxType,
           purchase_tax_type: purchaseTaxType,
@@ -502,6 +529,11 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
         });
       }
       if (keepOpen) {
+        if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(imagePreviewUrl);
+        }
+        setPendingImageFile(null);
+        setImagePreviewUrl(null);
         setForm({ ...EMPTY_ITEM, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '' });
         setSaleTaxType(getDefaultTaxMode());
         setPurchaseTaxType(getDefaultTaxMode());
@@ -514,6 +546,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
     } catch (e) {
       setError(e.message);
     } finally {
+      setUploadingPhoto(false);
       setSaving(false);
       setSavingNew(false);
     }
@@ -596,8 +629,8 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   >
                     {uploadingPhoto ? (
                       <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                    ) : form.image_url ? (
-                      <img src={form.image_url} alt="Item Preview" className="w-full h-full object-cover" />
+                    ) : (imagePreviewUrl || form.image_url) ? (
+                      <img src={imagePreviewUrl || form.image_url} alt="Item Preview" className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center text-slate-400">
                         <Package size={18} strokeWidth={1.5} />
@@ -605,12 +638,12 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                       </div>
                     )}
                   </div>
-                  {form.image_url && (
+                  {(imagePreviewUrl || form.image_url) && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        set('image_url', null);
+                        handleRemovePhoto();
                       }}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer z-10"
                       title="Remove image"
@@ -624,20 +657,20 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   <button
                     type="button"
                     onClick={() => cameraInputRef.current?.click()}
-                    disabled={uploadingPhoto}
+                    disabled={uploadingPhoto || saving || savingNew}
                     className="w-full py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200/70 border border-emerald-200/80 rounded-lg text-emerald-800 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 active:scale-98 shadow-2xs"
                   >
                     <Camera size={14} className="text-emerald-600 shrink-0" strokeWidth={2.2} />
-                    <span>{form.image_url ? 'Retake with Camera' : 'Take Photo (Camera)'}</span>
+                    <span>{(imagePreviewUrl || form.image_url) ? 'Retake with Camera' : 'Take Photo (Camera)'}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => photoInputRef.current?.click()}
-                    disabled={uploadingPhoto}
+                    disabled={uploadingPhoto || saving || savingNew}
                     className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300/60 border border-slate-200 rounded-lg text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 active:scale-98"
                   >
                     <ImageIcon size={14} className="text-slate-500 shrink-0" strokeWidth={2.2} />
-                    <span>{form.image_url ? 'Change from Gallery' : 'Choose from Gallery'}</span>
+                    <span>{(imagePreviewUrl || form.image_url) ? 'Change from Gallery' : 'Choose from Gallery'}</span>
                   </button>
                 </div>
               </div>
@@ -654,7 +687,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   setIsDragOver(false);
                   const file = e.dataTransfer?.files?.[0];
                   if (file && file.type.startsWith('image/')) {
-                    handleUploadImageFile(file);
+                    handleSelectImageFile(file);
                   }
                 }}
                 className={`w-[88px] h-[80px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-0.5 bg-white cursor-pointer transition-all relative overflow-hidden group shadow-xs shrink-0 ${
@@ -664,9 +697,9 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
               >
                 {uploadingPhoto ? (
                   <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                ) : form.image_url ? (
+                ) : (imagePreviewUrl || form.image_url) ? (
                   <>
-                    <img src={form.image_url} alt="Item Photo" className="w-full h-full object-cover" />
+                    <img src={imagePreviewUrl || form.image_url} alt="Item Photo" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <span className="text-[8px] text-white font-bold uppercase tracking-wider">Change</span>
                     </div>
@@ -679,10 +712,10 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   </>
                 )}
               </div>
-              {form.image_url && (
+              {(imagePreviewUrl || form.image_url) && (
                 <button
                   type="button"
-                  onClick={() => set('image_url', null)}
+                  onClick={handleRemovePhoto}
                   className="text-[10px] font-bold text-rose-500 hover:text-rose-700 hover:underline transition-colors cursor-pointer"
                 >
                   Remove Photo
@@ -718,7 +751,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
               className="hidden" 
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleUploadImageFile(file);
+                if (file) handleSelectImageFile(file);
                 e.target.value = '';
               }} 
             />
@@ -731,7 +764,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
               className="hidden" 
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleUploadImageFile(file);
+                if (file) handleSelectImageFile(file);
                 e.target.value = '';
               }} 
             />
@@ -1243,15 +1276,15 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                 id="item-save-btn"
                 type="button"
                 onClick={() => doSave(false)}
-                disabled={saving || savingNew}
+                disabled={saving || savingNew || uploadingPhoto}
                 className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
               >
-                {saving ? (
+                {saving || uploadingPhoto ? (
                   <RefreshCw size={14} className="animate-spin" />
                 ) : (
                   <Check size={14} strokeWidth={3} />
                 )}
-                <span>Update Item</span>
+                <span>{uploadingPhoto ? 'Uploading Photo…' : saving ? 'Updating…' : 'Update Item'}</span>
               </button>
             </div>
           ) : (
@@ -1259,24 +1292,24 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
               <button
                 type="button"
                 onClick={() => doSave(true)}
-                disabled={savingNew || saving}
+                disabled={savingNew || saving || uploadingPhoto}
                 className="flex-1 sm:flex-initial px-3 sm:px-5 py-2.5 sm:py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-98 border border-slate-200 rounded-xl transition-all cursor-pointer text-center shadow-2xs whitespace-nowrap disabled:opacity-50"
               >
-                {savingNew ? 'Saving…' : 'Save & Add New'}
+                {savingNew ? (uploadingPhoto ? 'Uploading…' : 'Saving…') : 'Save & Add New'}
               </button>
               <button
                 id="item-save-btn"
                 type="button"
                 onClick={() => doSave(false)}
-                disabled={saving || savingNew}
+                disabled={saving || savingNew || uploadingPhoto}
                 className="flex-1 sm:flex-initial px-4 sm:px-6 py-2.5 sm:py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
               >
-                {saving ? (
+                {saving || uploadingPhoto ? (
                   <RefreshCw size={14} className="animate-spin" />
                 ) : (
                   <Check size={14} strokeWidth={3} />
                 )}
-                <span>Save Item</span>
+                <span>{uploadingPhoto ? 'Uploading Photo…' : saving ? 'Saving…' : 'Save Item'}</span>
               </button>
             </div>
           )}

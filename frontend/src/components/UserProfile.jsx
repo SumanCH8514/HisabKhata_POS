@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   User, Mail, Phone, Camera, Save, Check,
   Shield, Key, Calendar, Building2, AlertCircle,
-  RefreshCw, Upload, Lock, Sparkles, ChevronDown
+  RefreshCw, Upload, Lock, Sparkles, ChevronDown, X
 } from 'lucide-react';
 import { getUserProfile, updateUserProfile, uploadUserPhoto } from '../api/client.js';
 
@@ -37,46 +37,51 @@ async function compressAndResizeImage(file, maxDimension = 1000, maxSizeBytes = 
       const img = new Image();
       img.src = event.target.result;
       img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
             height = Math.round((height * maxDimension) / width);
             width = maxDimension;
-          } else {
+          }
+        } else {
+          if (height > maxDimension) {
             width = Math.round((width * maxDimension) / height);
             height = maxDimension;
           }
         }
+
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        let quality = 0.85;
-        const attempt = (q) => {
+        let quality = 0.9;
+        const tryCompress = (q) => {
           canvas.toBlob(
             (blob) => {
-              if (!blob) return reject(new Error('Canvas compression failed'));
-              if (blob.size <= maxSizeBytes || q <= 0.3) {
-                const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.webp', {
-                  type: 'image/webp',
+              if (!blob) return reject(new Error('Canvas toBlob failed'));
+              if (blob.size <= maxSizeBytes || q <= 0.2) {
+                const compressedFile = new File([blob], file.name || 'avatar.jpg', {
+                  type: 'image/jpeg',
                   lastModified: Date.now()
                 });
                 resolve(compressedFile);
               } else {
-                attempt(q - 0.15);
+                tryCompress(q - 0.15);
               }
             },
-            'image/webp',
+            'image/jpeg',
             q
           );
         };
-        attempt(quality);
+        tryCompress(quality);
       };
-      img.onerror = (err) => reject(err);
+      img.onerror = (e) => reject(e);
     };
-    reader.onerror = (err) => reject(err);
+    reader.onerror = (e) => reject(e);
   });
 }
 
@@ -99,6 +104,8 @@ export default function UserProfile() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(null);
   const [error, setError] = useState(null);
   const [savedToast, setSavedToast] = useState(false);
 
@@ -178,40 +185,74 @@ export default function UserProfile() {
     setCompressing(true);
     try {
       const compressed = await compressAndResizeImage(file, 1000, 1048576);
-      setCompressing(false);
-      setUploading(true);
-
-      const res = await uploadUserPhoto(compressed);
-      if (res?.url) {
-        setProfile(p => ({ ...p, photo_url: res.url }));
-        localStorage.setItem('userPhoto', res.url);
-        window.dispatchEvent(new Event('user_profile_updated'));
+      if (avatarPreviewUrl && avatarPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreviewUrl);
       }
+      const previewUrl = URL.createObjectURL(compressed);
+      setPendingAvatarFile(compressed);
+      setAvatarPreviewUrl(previewUrl);
     } catch (err) {
       setError(err.message || 'Error processing photo');
     } finally {
       setCompressing(false);
-      setUploading(false);
+      e.target.value = '';
     }
   };
 
+  const handleRemovePhoto = () => {
+    if (avatarPreviewUrl && avatarPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+    setPendingAvatarFile(null);
+    setAvatarPreviewUrl(null);
+    setProfile(p => ({ ...p, photo_url: '' }));
+  };
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl && avatarPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
+
   const handleSave = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!profile.email.trim()) return setError('Email address is required');
     setSaving(true);
     setError(null);
 
     try {
+      let finalPhotoUrl = profile.photo_url;
+      if (pendingAvatarFile) {
+        setUploading(true);
+        const res = await uploadUserPhoto(pendingAvatarFile);
+        setUploading(false);
+        if (res?.url) {
+          finalPhotoUrl = res.url;
+        } else {
+          throw new Error(res?.error || 'Failed to upload profile photo');
+        }
+      }
+
       await updateUserProfile({
         name: profile.name.trim(),
         mobile: profile.mobile.trim(),
         email: profile.email.trim(),
-        photo_url: profile.photo_url
+        photo_url: finalPhotoUrl
       });
+
+      if (avatarPreviewUrl && avatarPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+      setPendingAvatarFile(null);
+      setAvatarPreviewUrl(null);
+      setProfile(p => ({ ...p, photo_url: finalPhotoUrl }));
 
       localStorage.setItem('userName', profile.name.trim());
       localStorage.setItem('userEmail', profile.email.trim());
-      if (profile.photo_url) localStorage.setItem('userPhoto', profile.photo_url);
+      if (finalPhotoUrl) localStorage.setItem('userPhoto', finalPhotoUrl);
+      else localStorage.removeItem('userPhoto');
       window.dispatchEvent(new Event('user_profile_updated'));
 
       setSavedToast(true);
@@ -219,6 +260,7 @@ export default function UserProfile() {
     } catch (err) {
       setError(err.message || 'Failed to update profile');
     } finally {
+      setUploading(false);
       setSaving(false);
     }
   };
@@ -247,11 +289,15 @@ export default function UserProfile() {
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || uploading || compressing}
             className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 rounded-lg shadow-xs transition-all cursor-pointer"
           >
-            <Save size={14} strokeWidth={2.5} />
-            <span>{saving ? 'Saving…' : 'Save Profile'}</span>
+            {saving || uploading ? (
+              <RefreshCw size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} strokeWidth={2.5} />
+            )}
+            <span>{uploading ? 'Uploading Photo…' : (saving ? 'Saving…' : 'Save Profile')}</span>
           </button>
         </div>
       </div>
@@ -270,21 +316,32 @@ export default function UserProfile() {
             
             <div className="relative w-28 h-28 mx-auto">
               <div className="w-full h-full rounded-2xl border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center shadow-xs">
-                {profile.photo_url ? (
-                  <img src={profile.photo_url} alt="Profile" className="w-full h-full object-cover" />
+                {(avatarPreviewUrl || profile.photo_url) ? (
+                  <img src={avatarPreviewUrl || profile.photo_url} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-4xl font-black text-slate-400">{userInitial}</span>
                 )}
               </div>
 
+              {(avatarPreviewUrl || profile.photo_url) && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer z-10"
+                  title="Remove Photo"
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading || compressing}
-                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white flex items-center justify-center shadow-md transition-all cursor-pointer"
-                title="Upload & Compress Photo"
+                disabled={uploading || compressing || saving}
+                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white flex items-center justify-center shadow-md transition-all cursor-pointer disabled:opacity-50"
+                title="Choose Profile Photo"
               >
-                {uploading || compressing ? (
+                {compressing ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Camera size={16} />
@@ -442,6 +499,21 @@ export default function UserProfile() {
                   />
                 </div>
                 <span className="text-[10px] text-slate-400 block mt-1">Used for signing in and invoice notification dispatches</span>
+              </div>
+
+              <div className="sm:col-span-2 pt-4 border-t border-slate-100 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={saving || uploading || compressing}
+                  className="flex items-center gap-1.5 px-6 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 rounded-lg shadow-sm transition-all cursor-pointer"
+                >
+                  {saving || uploading ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Save size={14} strokeWidth={2.5} />
+                  )}
+                  <span>{uploading ? 'Uploading Photo…' : (saving ? 'Saving Changes…' : 'Save Changes')}</span>
+                </button>
               </div>
             </div>
           </form>
