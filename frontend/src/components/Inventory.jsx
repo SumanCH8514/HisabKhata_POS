@@ -306,6 +306,18 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   }, [imagePreviewUrl]);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (!showCategoryModal && !showSubCategoryModal && !showBrandModal && !showBarcodeScanner) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showCategoryModal, showSubCategoryModal, showBrandModal, showBarcodeScanner, onClose]);
+
+  useEffect(() => {
     const mrpNum = parseFloat(form.mrp) || 0;
     const saleNum = parseFloat(form.sale_price) || 0;
     if (mrpNum > 0 && saleNum > 0 && mrpNum >= saleNum) {
@@ -557,32 +569,37 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   const dot  = <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div 
-        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl xl:max-w-6xl flex flex-col bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 animate-fade-in overflow-hidden"
-      >
+    <div 
+      className="fixed inset-0 z-[9999] flex flex-col bg-white overflow-hidden animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full h-full flex flex-col bg-white overflow-hidden">
 
-        <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3.5 border-b border-slate-100 flex-shrink-0 bg-slate-50/90 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
-              <Package size={17} strokeWidth={2.2} />
+        <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-8 sm:py-3.5 border-b border-slate-100 flex-shrink-0 bg-slate-50/90 backdrop-blur-md sticky top-0 z-20">
+          <div className="w-full flex items-center justify-between max-w-[1600px] mx-auto">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
+                <Package size={17} strokeWidth={2.2} />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-black text-slate-900 leading-tight">{isEdit ? 'Edit Item' : 'Add Item'}</h2>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">Create Product Or Service Catalog Entry</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-black text-slate-900 leading-tight">{isEdit ? 'Edit Item' : 'Add Item'}</h2>
-              <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">Create Product Or Service Catalog Entry</p>
-            </div>
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+              title="Close modal (Esc)"
+            >
+              <X size={17} strokeWidth={2.2} />
+            </button>
           </div>
-          <button 
-            type="button"
-            onClick={onClose} 
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-            title="Close modal"
-          >
-            <X size={17} strokeWidth={2.2} />
-          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3.5 sm:px-6 sm:py-5 space-y-4 sm:space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 py-3.5 sm:px-8 sm:py-5 space-y-4 sm:space-y-5">
+          <div className="max-w-[1600px] mx-auto w-full space-y-4 sm:space-y-5">
 
           {error && (
             <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">{error}</div>
@@ -1253,66 +1270,70 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
             </div>
           )}
 
+          </div>
+
         </div>
 
-        <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3.5 py-2.5 sm:px-6 sm:py-3.5 flex items-center justify-between sm:justify-end gap-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] sm:shadow-none flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="hidden sm:inline-flex px-4 sm:px-5 py-2 sm:py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 active:scale-98 rounded-xl transition-all cursor-pointer text-center border border-transparent hover:border-slate-200"
-          >
-            Cancel
-          </button>
-          {isEdit ? (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={onClose}
-                className="sm:hidden flex-1 py-2.5 px-4 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-98 rounded-xl transition-all cursor-pointer text-center"
-              >
-                Cancel
-              </button>
-              <button
-                id="item-save-btn"
-                type="button"
-                onClick={() => doSave(false)}
-                disabled={saving || savingNew || uploadingPhoto}
-                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
-              >
-                {saving || uploadingPhoto ? (
-                  <RefreshCw size={14} className="animate-spin" />
-                ) : (
-                  <Check size={14} strokeWidth={3} />
-                )}
-                <span>{uploadingPhoto ? 'Uploading Photo…' : saving ? 'Updating…' : 'Update Item'}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => doSave(true)}
-                disabled={savingNew || saving || uploadingPhoto}
-                className="flex-1 sm:flex-initial px-3 sm:px-5 py-2.5 sm:py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-98 border border-slate-200 rounded-xl transition-all cursor-pointer text-center shadow-2xs whitespace-nowrap disabled:opacity-50"
-              >
-                {savingNew ? (uploadingPhoto ? 'Uploading…' : 'Saving…') : 'Save & Add New'}
-              </button>
-              <button
-                id="item-save-btn"
-                type="button"
-                onClick={() => doSave(false)}
-                disabled={saving || savingNew || uploadingPhoto}
-                className="flex-1 sm:flex-initial px-4 sm:px-6 py-2.5 sm:py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
-              >
-                {saving || uploadingPhoto ? (
-                  <RefreshCw size={14} className="animate-spin" />
-                ) : (
-                  <Check size={14} strokeWidth={3} />
-                )}
-                <span>{uploadingPhoto ? 'Uploading Photo…' : saving ? 'Saving…' : 'Save Item'}</span>
-              </button>
-            </div>
-          )}
+        <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3.5 py-2.5 sm:px-8 sm:py-3.5 flex items-center justify-between sm:justify-end gap-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] sm:shadow-none flex-shrink-0">
+          <div className="w-full flex items-center justify-between sm:justify-end gap-2 max-w-[1600px] mx-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              className="hidden sm:inline-flex px-4 sm:px-5 py-2 sm:py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 active:scale-98 rounded-xl transition-all cursor-pointer text-center border border-transparent hover:border-slate-200"
+            >
+              Cancel
+            </button>
+            {isEdit ? (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="sm:hidden flex-1 py-2.5 px-4 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-98 rounded-xl transition-all cursor-pointer text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="item-save-btn"
+                  type="button"
+                  onClick={() => doSave(false)}
+                  disabled={saving || savingNew || uploadingPhoto}
+                  className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+                >
+                  {saving || uploadingPhoto ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Check size={14} strokeWidth={3} />
+                  )}
+                  <span>{uploadingPhoto ? 'Uploading Photo…' : saving ? 'Updating…' : 'Update Item'}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => doSave(true)}
+                  disabled={savingNew || saving || uploadingPhoto}
+                  className="flex-1 sm:flex-initial px-3 sm:px-5 py-2.5 sm:py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-98 border border-slate-200 rounded-xl transition-all cursor-pointer text-center shadow-2xs whitespace-nowrap disabled:opacity-50"
+                >
+                  {savingNew ? (uploadingPhoto ? 'Uploading…' : 'Saving…') : 'Save & Add New'}
+                </button>
+                <button
+                  id="item-save-btn"
+                  type="button"
+                  onClick={() => doSave(false)}
+                  disabled={saving || savingNew || uploadingPhoto}
+                  className="flex-1 sm:flex-initial px-4 sm:px-6 py-2.5 sm:py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+                >
+                  {saving || uploadingPhoto ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Check size={14} strokeWidth={3} />
+                  )}
+                  <span>{uploadingPhoto ? 'Uploading Photo…' : saving ? 'Saving…' : 'Save Item'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
       </div>
