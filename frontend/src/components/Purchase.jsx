@@ -21,7 +21,10 @@ import {
   getUnits, 
   getCategories, 
   syncUserSettingsFromCloud,
-  fmtCurrency 
+  fmtCurrency,
+  isBusinessGstRegistered,
+  getActiveTaxRates,
+  getDefaultTaxRate
 } from '../api/client.js';
 
 function CustomSelect({ 
@@ -354,14 +357,15 @@ export default function Purchase() {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [activeItemRowIdx, setActiveItemRowIdx] = useState(null);
-  const defaultTaxRate = useMemo(() => Number(localStorage.getItem('default_tax_rate')) || 18, []);
+  const [isRegistered, setIsRegistered] = useState(() => isBusinessGstRegistered());
+  const defaultTaxRate = useMemo(() => isRegistered ? (Number(localStorage.getItem('default_tax_rate')) || 18) : 0, [isRegistered]);
   const [taxMode, setTaxMode] = useState(() => localStorage.getItem('hk_purchase_tax_mode') || 'INCLUSIVE');
   const [newItemForm, setNewItemForm] = useState({
     name: '',
     unit: 'Pcs',
     purchase_price: '',
     sale_price: '',
-    tax_rate: Number(localStorage.getItem('default_tax_rate')) || 18,
+    tax_rate: isBusinessGstRegistered() ? (Number(localStorage.getItem('default_tax_rate')) || 18) : 0,
     barcode: '',
     category_name: '',
     hsn_code: '',
@@ -382,7 +386,7 @@ export default function Purchase() {
     discount_amount: 0,
     notes: '',
     supplier_invoice_ref: '',
-    items: [{ item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: Number(localStorage.getItem('default_tax_rate')) || 18 }]
+    items: [{ item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: isBusinessGstRegistered() ? (Number(localStorage.getItem('default_tax_rate')) || 18) : 0 }]
   });
 
   const loadData = () => {
@@ -413,6 +417,15 @@ export default function Purchase() {
 
   useEffect(() => {
     loadData();
+    const handleProfileUpdate = () => {
+      setIsRegistered(isBusinessGstRegistered());
+    };
+    window.addEventListener('company_profile_updated', handleProfileUpdate);
+    window.addEventListener('storage', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('company_profile_updated', handleProfileUpdate);
+      window.removeEventListener('storage', handleProfileUpdate);
+    };
   }, []);
 
   const openNewPurchaseModal = () => {
@@ -587,22 +600,12 @@ export default function Purchase() {
   }, [units]);
 
   const gstOptions = useMemo(() => {
-    let raw = null;
-    try {
-      raw = JSON.parse(localStorage.getItem('hk_active_tax_rates'));
-    } catch {}
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw.map(r => ({ value: Number(r), label: `${r}%` }));
+    if (!isRegistered) {
+      return [{ value: 0, label: '0% (Non-GST)' }];
     }
-    return [
-      { value: 0, label: '0%' },
-      { value: 3, label: '3%' },
-      { value: 5, label: '5%' },
-      { value: 12, label: '12%' },
-      { value: 18, label: '18%' },
-      { value: 28, label: '28%' }
-    ];
-  }, []);
+    const rates = getActiveTaxRates();
+    return rates.map(r => ({ value: Number(r), label: `${r}%` }));
+  }, [isRegistered]);
 
   const categoryOptions = useMemo(() => {
     const list = categories.map(c => ({ value: c.name, label: c.name }));
@@ -621,9 +624,9 @@ export default function Purchase() {
       const qty = Number(it.quantity) || 0;
       const rate = Number(it.rate) || 0;
       const disc = Number(it.discount) || 0;
-      const taxRate = Number(it.tax_rate) || 0;
+      const taxRate = isRegistered ? (Number(it.tax_rate) || 0) : 0;
 
-      if (taxMode === 'INCLUSIVE') {
+      if (taxMode === 'INCLUSIVE' && isRegistered) {
         const gross = Math.max(0, (qty * rate) - disc);
         const base = taxRate > 0 ? (gross / (1 + (taxRate / 100))) : gross;
         const taxAmt = gross - base;
@@ -631,16 +634,16 @@ export default function Purchase() {
         return { base, taxAmt, rowTotal, qty };
       } else {
         const base = Math.max(0, (qty * rate) - disc);
-        const taxAmt = base * (taxRate / 100);
+        const taxAmt = isRegistered ? (base * (taxRate / 100)) : 0;
         const rowTotal = base + taxAmt;
         return { base, taxAmt, rowTotal, qty };
       }
     });
-  }, [form.items, taxMode]);
+  }, [form.items, taxMode, isRegistered]);
 
   const totalQty = useMemo(() => itemTotals.reduce((sum, r) => sum + r.qty, 0), [itemTotals]);
   const subtotal = useMemo(() => itemTotals.reduce((sum, r) => sum + r.base, 0), [itemTotals]);
-  const taxTotal = useMemo(() => itemTotals.reduce((sum, r) => sum + r.taxAmt, 0), [itemTotals]);
+  const taxTotal = useMemo(() => isRegistered ? itemTotals.reduce((sum, r) => sum + r.taxAmt, 0) : 0, [itemTotals, isRegistered]);
   const billDiscount = Number(form.discount_amount) || 0;
   const rawGrandTotal = Math.max(0, subtotal + taxTotal - billDiscount);
   const grandTotal = Math.round(rawGrandTotal * 100) / 100;
@@ -710,7 +713,7 @@ export default function Purchase() {
         party_id: form.party_id ? Number(form.party_id) : null,
         payment_mode: form.payment_mode,
         subtotal,
-        tax_amount: taxTotal,
+        tax_amount: isRegistered ? taxTotal : 0,
         discount_amount: billDiscount,
         total_amount: grandTotal,
         amount_paid: paidAmount,
@@ -725,8 +728,8 @@ export default function Purchase() {
           quantity: Number(it.quantity) || 1,
           rate: Number(it.rate) || 0,
           discount: Number(it.discount) || 0,
-          tax_rate: Number(it.tax_rate) || 0,
-          tax_amount: itemTotals[idx]?.taxAmt || 0,
+          tax_rate: isRegistered ? (Number(it.tax_rate) || 0) : 0,
+          tax_amount: isRegistered ? (itemTotals[idx]?.taxAmt || 0) : 0,
           total: itemTotals[idx]?.rowTotal || 0
         }))
       });
@@ -895,7 +898,9 @@ export default function Purchase() {
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/50">
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-800 truncate">{b.party_name || 'Direct Supplier'}</p>
-                        <p className="text-[10px] text-slate-400">GST: {fmtCurrency(b.tax_amount || 0)}</p>
+                        {isRegistered && (
+                          <p className="text-[10px] text-slate-400">GST: {fmtCurrency(b.tax_amount || 0)}</p>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -924,7 +929,7 @@ export default function Purchase() {
                     <th className="py-3 px-4">Bill #</th>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Supplier / Vendor</th>
-                    <th className="py-3 px-4 text-right">Tax (GST)</th>
+                    <th className="py-3 px-4 text-right">{isRegistered ? 'Tax (GST)' : 'Tax'}</th>
                     <th className="py-3 px-4 text-right">Grand Total</th>
                     <th className="py-3 px-4 text-right">Paid</th>
                     <th className="py-3 px-4 text-right">Status</th>
@@ -948,7 +953,9 @@ export default function Purchase() {
                         <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">
                           <span className="font-bold text-slate-900">{b.party_name || 'Direct Supplier'}</span>
                         </td>
-                        <td className="py-3 px-4 text-right font-medium text-slate-600 number-cell whitespace-nowrap">{fmtCurrency(b.tax_amount || 0)}</td>
+                        <td className="py-3 px-4 text-right font-medium text-slate-600 number-cell whitespace-nowrap">
+                          {isRegistered ? fmtCurrency(b.tax_amount || 0) : '—'}
+                        </td>
                         <td className="py-3 px-4 text-right font-extrabold text-slate-900 number-cell whitespace-nowrap">{fmtCurrency(b.total_amount || 0)}</td>
                         <td className="py-3 px-4 text-right font-bold text-emerald-700 number-cell whitespace-nowrap">{fmtCurrency(b.amount_paid || 0)}</td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -1075,38 +1082,44 @@ export default function Purchase() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1 bg-slate-200/70 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTaxMode('EXCLUSIVE');
-                          localStorage.setItem('hk_purchase_tax_mode', 'EXCLUSIVE');
-                          localStorage.setItem('hk_tax_calculation_mode', 'EXCLUSIVE');
-                        }}
-                        className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          taxMode === 'EXCLUSIVE'
-                            ? 'bg-white text-blue-700 shadow-2xs font-black'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        + GST (Exclusive)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTaxMode('INCLUSIVE');
-                          localStorage.setItem('hk_purchase_tax_mode', 'INCLUSIVE');
-                          localStorage.setItem('hk_tax_calculation_mode', 'INCLUSIVE');
-                        }}
-                        className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          taxMode === 'INCLUSIVE'
-                            ? 'bg-white text-emerald-700 shadow-2xs font-black'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Incl. GST (MRP)
-                      </button>
-                    </div>
+                    {isRegistered ? (
+                      <div className="flex items-center gap-1 bg-slate-200/70 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTaxMode('EXCLUSIVE');
+                            localStorage.setItem('hk_purchase_tax_mode', 'EXCLUSIVE');
+                            localStorage.setItem('hk_tax_calculation_mode', 'EXCLUSIVE');
+                          }}
+                          className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            taxMode === 'EXCLUSIVE'
+                              ? 'bg-white text-blue-700 shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          + GST (Exclusive)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTaxMode('INCLUSIVE');
+                            localStorage.setItem('hk_purchase_tax_mode', 'INCLUSIVE');
+                            localStorage.setItem('hk_tax_calculation_mode', 'INCLUSIVE');
+                          }}
+                          className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            taxMode === 'INCLUSIVE'
+                              ? 'bg-white text-emerald-700 shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Incl. GST (MRP)
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        Non-GST Inward
+                      </span>
+                    )}
 
                     <button
                       type="button"
@@ -1128,7 +1141,7 @@ export default function Purchase() {
                   </div>
                 </div>
 
-                <div className="hidden md:block overflow-visible">
+                <div className="hidden md:block overflow-x-auto max-h-[380px] p-2">
                   <table className="w-full text-left text-xs min-w-[780px]">
                     <thead>
                       <tr className="bg-slate-100/60 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200 whitespace-nowrap">
@@ -1140,7 +1153,7 @@ export default function Purchase() {
                           {taxMode === 'INCLUSIVE' ? 'Cost (Incl. GST)' : 'Unit Cost (₹)'}
                         </th>
                         <th className="py-2.5 px-3 w-20 text-right whitespace-nowrap">Disc (₹)</th>
-                        <th className="py-2.5 px-3 w-24 whitespace-nowrap">GST Slab</th>
+                        <th className="py-2.5 px-3 w-24 whitespace-nowrap">{isRegistered ? 'GST Slab' : 'Tax'}</th>
                         <th className="py-2.5 px-3 w-28 text-right whitespace-nowrap">Net Amount</th>
                         <th className="py-2.5 px-2 w-8 text-center"></th>
                       </tr>
@@ -1464,14 +1477,16 @@ export default function Purchase() {
 
                     <div className="space-y-1.5 text-xs pt-2">
                       <div className="flex justify-between text-slate-600">
-                        <span>Taxable Item Subtotal:</span>
+                        <span>{isRegistered ? 'Taxable Item Subtotal:' : 'Item Subtotal:'}</span>
                         <span className="font-bold font-mono text-slate-900">{fmtCurrency(subtotal)}</span>
                       </div>
 
-                      <div className="flex justify-between text-slate-600">
-                        <span>Total GST (Tax):</span>
-                        <span className="font-bold font-mono text-slate-900">{fmtCurrency(taxTotal)}</span>
-                      </div>
+                      {isRegistered && (
+                        <div className="flex justify-between text-slate-600">
+                          <span>Total GST (Tax):</span>
+                          <span className="font-bold font-mono text-slate-900">{fmtCurrency(taxTotal)}</span>
+                        </div>
+                      )}
 
                       <div className="flex justify-between items-center text-slate-600">
                         <span>Bill Discount (₹):</span>
@@ -1924,10 +1939,14 @@ export default function Purchase() {
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center text-xs">
                 <div>
-                  <span className="text-slate-500">Taxable Subtotal: </span>
+                  <span className="text-slate-500">{isRegistered ? 'Taxable Subtotal: ' : 'Subtotal: '}</span>
                   <span className="font-bold font-mono">{fmtCurrency(selectedBillDetail.subtotal || 0)}</span>
-                  <span className="text-slate-400 ml-3">Tax: </span>
-                  <span className="font-bold font-mono">{fmtCurrency(selectedBillDetail.tax_amount || 0)}</span>
+                  {isRegistered && (
+                    <>
+                      <span className="text-slate-400 ml-3">Tax: </span>
+                      <span className="font-bold font-mono">{fmtCurrency(selectedBillDetail.tax_amount || 0)}</span>
+                    </>
+                  )}
                 </div>
                 <div>
                   <span className="text-slate-600 font-bold mr-2">Total Amount:</span>

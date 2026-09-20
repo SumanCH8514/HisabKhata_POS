@@ -129,6 +129,7 @@ export const updateCompany = (body) => request('/api/company', { method: 'PUT', 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 export const getExpenses = () => request('/api/expenses');
 export const createExpense = (body) => request('/api/expenses', { method: 'POST', body: JSON.stringify(body) });
+export const updateExpense = (id, body) => request(`/api/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) });
 export const deleteExpense = (id) => request(`/api/expenses/${id}`, { method: 'DELETE' });
 
 export const compressImageClient = (file, maxDimension = 1200, maxSizeBytes = 200 * 1024) => {
@@ -238,8 +239,12 @@ export const adjustStock = (body) => request('/api/items/stock-adjustment', { me
 
 export const getFundAccounts = () => request('/api/fund/accounts');
 export const createFundAccount = (body) => request('/api/fund/accounts', { method: 'POST', body: JSON.stringify(body) });
+export const updateFundAccount = (id, body) => request(`/api/fund/accounts/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+export const deleteFundAccount = (id) => request(`/api/fund/accounts/${id}`, { method: 'DELETE' });
 export const getFundTransactions = () => request('/api/fund/transactions');
 export const createFundTransaction = (body) => request('/api/fund/transactions', { method: 'POST', body: JSON.stringify(body) });
+export const transferFund = (body) => request('/api/fund/transfer', { method: 'POST', body: JSON.stringify(body) });
+export const deleteFundTransaction = (id) => request(`/api/fund/transactions/${id}`, { method: 'DELETE' });
 
 export const getSalesReport = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
@@ -363,6 +368,44 @@ export const getPosSettings = (format = null) => {
   } catch {
     return {};
   }
+};
+
+export const isBusinessGstRegistered = (comp = null) => {
+  try {
+    const c = comp || JSON.parse(localStorage.getItem('cached_company') || '{}');
+    const gst = c?.gst_number || c?.gstin || '';
+    return Boolean(gst && String(gst).trim().length > 0);
+  } catch {
+    return false;
+  }
+};
+
+export const getActiveTaxRates = (comp = null) => {
+  if (!isBusinessGstRegistered(comp)) {
+    return [0];
+  }
+  try {
+    const posCfg = getPosSettings();
+    if (Array.isArray(posCfg.enabledTaxSlabs) && posCfg.enabledTaxSlabs.length > 0) {
+      return posCfg.enabledTaxSlabs.map(Number).sort((a, b) => a - b);
+    }
+    const raw = localStorage.getItem('hk_active_tax_rates');
+    if (raw) return JSON.parse(raw).map(Number).sort((a, b) => a - b);
+  } catch {}
+  return [0, 5, 12, 18, 28];
+};
+
+export const getDefaultTaxRate = (comp = null) => {
+  if (!isBusinessGstRegistered(comp)) {
+    return 0;
+  }
+  try {
+    const direct = localStorage.getItem('default_tax_rate');
+    if (direct !== null && direct !== undefined && direct !== '') return Number(direct);
+    const posCfg = getPosSettings();
+    if (posCfg.defaultTaxRate !== undefined && posCfg.defaultTaxRate !== '') return Number(posCfg.defaultTaxRate);
+  } catch {}
+  return 18;
 };
 
 export const formatAppDate = (dStr) => {

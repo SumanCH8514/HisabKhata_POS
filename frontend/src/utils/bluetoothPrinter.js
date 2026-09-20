@@ -499,13 +499,17 @@ const executeLocalEscPosPrint = async (invoice, company = {}, cfg = {}, catalog 
     );
   }
 
-  if (showGst) {
+  const isRegistered = Boolean(company?.gst_number && company.gst_number.trim().length > 0);
+  if (showGst && isRegistered) {
     const cleanGst = sanitizeAscii(company.gst_number || company.trade_licence);
     cmd.push(...encodeText(`GSTIN: ${cleanGst}\n`));
   }
 
-  if (cfg.invoiceTitle && cfg.invoiceTitle !== 'NAN' && cfg.invoiceTitle !== 'NONE') {
-    cmd.push(...encodeText(`[ ${sanitizeAscii(cfg.invoiceTitle)} ]\n`));
+  const effectiveTitle = !isRegistered
+    ? (cfg.invoiceTitle && cfg.invoiceTitle !== 'TAX INVOICE' ? cfg.invoiceTitle : 'BILL OF SUPPLY')
+    : (cfg.invoiceTitle || 'TAX INVOICE');
+  if (effectiveTitle && effectiveTitle !== 'NAN' && effectiveTitle !== 'NONE') {
+    cmd.push(...encodeText(`[ ${sanitizeAscii(effectiveTitle)} ]\n`));
   }
 
   const invNum = sanitizeAscii(invoice.invoice_number || 'N/A');
@@ -558,7 +562,9 @@ const executeLocalEscPosPrint = async (invoice, company = {}, cfg = {}, catalog 
     }
   }
 
-  const subtotal = Number(invoice.subtotal || 0).toFixed(2);
+  const subtotal = isRegistered
+    ? Number(invoice.subtotal || 0).toFixed(2)
+    : Number(invoice.total_amount || invoice.subtotal || 0).toFixed(2);
   const tax = Number(invoice.tax_amount || 0).toFixed(2);
   const total = Number(invoice.total_amount || 0).toFixed(2);
   const paid = Number(invoice.amount_paid !== undefined ? invoice.amount_paid : invoice.total_amount || 0).toFixed(2);
@@ -566,8 +572,14 @@ const executeLocalEscPosPrint = async (invoice, company = {}, cfg = {}, catalog 
   cmd.push(
     ...encodeText('--------------------------------\n'),
     ESC, 0x61, 0x00,
-    ...encodeText(`${twoCols('Subtotal:', `Rs.${subtotal}`, 32)}\n`),
-    ...encodeText(`${twoCols('GST Tax:', `Rs.${tax}`, 32)}\n`),
+    ...encodeText(`${twoCols(isRegistered ? 'Subtotal:' : 'Total Amount:', `Rs.${subtotal}`, 32)}\n`)
+  );
+
+  if (isRegistered && Number(tax) > 0) {
+    cmd.push(...encodeText(`${twoCols('GST Tax:', `Rs.${tax}`, 32)}\n`));
+  }
+
+  cmd.push(
     ...encodeText('--------------------------------\n'),
     ESC, 0x45, 0x01,
     ...encodeText(`${twoCols('TOTAL:', `Rs.${total}`, 32)}\n`),

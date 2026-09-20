@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronUp, ChevronDown, Minus, AlertCircle, Sparkles, Bluetooth, Zap,
   Maximize2, Minimize2, ScanLine, Camera, UserPlus, Phone, Wallet, MapPin, Mail, Send
 } from 'lucide-react';
-import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, fmtCurrency, fmt, getPosSettings } from '../api/client.js';
+import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, fmtCurrency, fmt, getPosSettings, isBusinessGstRegistered } from '../api/client.js';
 import { getConnectedPrinter, printEscPosInvoice } from '../utils/bluetoothPrinter.js';
 
 const playScannerBeep = () => {
@@ -70,7 +70,7 @@ export default function POSBilling() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [emailSendStatus, setEmailSendStatus] = useState(null);
-
+  const [isRegistered, setIsRegistered] = useState(() => isBusinessGstRegistered());
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [selectedUpiOption, setSelectedUpiOption] = useState('BharatPe');
   const [customReceivedAmount, setCustomReceivedAmount] = useState('');
@@ -162,8 +162,17 @@ export default function POSBilling() {
     const handleFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
+    const handleProfileUpdate = () => {
+      setIsRegistered(isBusinessGstRegistered());
+    };
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    window.addEventListener('company_profile_updated', handleProfileUpdate);
+    window.addEventListener('storage', handleProfileUpdate);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      window.removeEventListener('company_profile_updated', handleProfileUpdate);
+      window.removeEventListener('storage', handleProfileUpdate);
+    };
   }, []);
 
   const toggleFullscreen = () => {
@@ -343,7 +352,7 @@ export default function POSBilling() {
         name: item.name,
         unit: item.unit || 'Pcs',
         rate: item.sale_price || 0,
-        tax_rate: item.tax_rate || 0,
+        tax_rate: isRegistered ? (item.tax_rate || 0) : 0,
         mrp: (item.mrp !== undefined && item.mrp !== null && Number(item.mrp) > 0) ? Number(item.mrp) : (item.sale_price || 0),
         quantity: qty,
         discount: 0
@@ -378,22 +387,22 @@ export default function POSBilling() {
 
   const subtotal = cart.reduce((sum, line) => {
     const lineAmt = line.quantity * line.rate - (line.discount || 0);
-    if (isInclusive) {
+    if (isInclusive && isRegistered && (line.tax_rate || 0) > 0) {
       return sum + lineAmt / (1 + line.tax_rate / 100);
     }
     return sum + lineAmt;
   }, 0);
 
-  const taxTotal = cart.reduce((sum, line) => {
+  const taxTotal = isRegistered ? cart.reduce((sum, line) => {
     const lineAmt = line.quantity * line.rate - (line.discount || 0);
     if (isInclusive) {
-      const base = lineAmt / (1 + line.tax_rate / 100);
+      const base = lineAmt / (1 + (line.tax_rate || 0) / 100);
       return sum + (lineAmt - base);
     }
-    return sum + (lineAmt * line.tax_rate / 100);
-  }, 0);
+    return sum + (lineAmt * (line.tax_rate || 0) / 100);
+  }, 0) : 0;
 
-  const grandTotal = isInclusive ? cart.reduce((s, l) => s + (l.quantity * l.rate - (l.discount || 0)), 0) : subtotal + taxTotal;
+  const grandTotal = (isInclusive && isRegistered) ? cart.reduce((s, l) => s + (l.quantity * l.rate - (l.discount || 0)), 0) : subtotal + taxTotal;
 
   const paidAmount = paymentMode === 'CUSTOM'
     ? (customReceivedAmount === '' ? grandTotal : Math.max(0, Number(customReceivedAmount)))
@@ -484,7 +493,7 @@ export default function POSBilling() {
         customer_name: selectedParty?.name || null,
         customer_phone: selectedParty?.phone || null,
         subtotal,
-        tax_amount: taxTotal,
+        tax_amount: isRegistered ? taxTotal : 0,
         total_amount: grandTotal,
         amount_paid: paid,
         payment_mode: actualPaymentMode,
@@ -493,8 +502,8 @@ export default function POSBilling() {
           item_name: c.name,
           unit: c.unit,
           quantity: c.quantity,
-          rate: isInclusive ? (c.rate / (1 + (c.tax_rate || 0) / 100)) : c.rate,
-          tax_rate: c.tax_rate,
+          rate: (isInclusive && isRegistered && (c.tax_rate || 0) > 0) ? (c.rate / (1 + (c.tax_rate || 0) / 100)) : c.rate,
+          tax_rate: isRegistered ? (c.tax_rate || 0) : 0,
           mrp: (c.mrp !== undefined && c.mrp !== null && Number(c.mrp) > 0) ? Number(c.mrp) : (c.rate || 0)
         }))
       });
@@ -508,7 +517,7 @@ export default function POSBilling() {
         email_sent: res.email_sent,
         email_error: res.email_error,
         subtotal,
-        tax_amount: taxTotal,
+        tax_amount: isRegistered ? taxTotal : 0,
         total_amount: grandTotal,
         paid,
         due,
@@ -1031,7 +1040,7 @@ export default function POSBilling() {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {line.tax_rate > 0 && (
+                          {isRegistered && line.tax_rate > 0 && (
                             <span className="text-[8px] font-bold text-blue-500 bg-blue-50 border border-blue-100 px-1 py-0.5 rounded">
                               {line.tax_rate}%
                             </span>
@@ -1059,20 +1068,22 @@ export default function POSBilling() {
 
             <div className="bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1 text-xs">
               <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                <span>Subtotal{isInclusive ? ' (excl. tax)' : ''}:</span>
+                <span>Subtotal{(isInclusive && isRegistered) ? ' (excl. tax)' : ''}:</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 number-cell">{fmtCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1">
-                  GST Tax
-                  {blendedTaxRate > 0 && (
-                    <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-1 py-0.5 rounded">{blendedTaxRate}%</span>
-                  )}
-                  {isInclusive && <span className="text-[9px] text-slate-400">(incl.)</span>}
-                  :
-                </span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 number-cell">{fmtCurrency(taxTotal)}</span>
-              </div>
+              {isRegistered && (
+                <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                  <span className="flex items-center gap-1">
+                    GST Tax
+                    {blendedTaxRate > 0 && (
+                      <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-1 py-0.5 rounded">{blendedTaxRate}%</span>
+                    )}
+                    {isInclusive && <span className="text-[9px] text-slate-400">(incl.)</span>}
+                    :
+                  </span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 number-cell">{fmtCurrency(taxTotal)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-xs pt-1 border-t border-slate-200 dark:border-slate-700 font-black text-slate-900 dark:text-white">
                 <span>Grand Total:</span>
                 <span className="text-sm text-emerald-600 dark:text-emerald-400 number-cell font-black">{fmtCurrency(grandTotal)}</span>
@@ -1898,7 +1909,7 @@ function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency }) {
                   {discountPercent}% OFF
                 </span>
               )}
-              {item.tax_rate > 0 && (
+              {isRegistered && item.tax_rate > 0 && (
                 <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 ml-auto">
                   GST {item.tax_rate}%
                 </span>

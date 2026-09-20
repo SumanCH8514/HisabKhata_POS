@@ -14,7 +14,8 @@ import {
   getExpenses, 
   getInvoices,
   fmtCurrency,
-  getCompany
+  getCompany,
+  isBusinessGstRegistered
 } from '../api/client.js';
 
 const getLocalDateStr = (d = new Date()) => {
@@ -41,6 +42,7 @@ export default function Reports() {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState(getLocalDateStr(new Date()));
 
+  const isRegistered = isBusinessGstRegistered(company);
   const companyName = company?.name || company?.business_name || localStorage.getItem('companyName') || 'HisabKhata POS';
 
   const dateRange = useMemo(() => {
@@ -493,10 +495,11 @@ export default function Reports() {
 
       <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-2xl p-1.5 shadow-xs overflow-x-auto no-scrollbar print:hidden">
         {[
-          { id: 'SALES', label: 'Sales Report', icon: Receipt },
-          { id: 'GST', label: 'GSTR-1 Tax Summary', icon: FileSpreadsheet },
+          { id: 'SALES', label: 'Sales Register', icon: Receipt },
+          ...(isRegistered ? [{ id: 'GST', label: 'GSTR-1 Tax', icon: FileSpreadsheet }] : []),
           { id: 'PNL', label: 'Profit & Loss', icon: TrendingUp },
-          { id: 'STOCK', label: 'Stock Valuation', icon: Package },
+          { id: 'STOCK', label: 'Inventory Valuation', icon: BarChart2 },
+          { id: 'EXPENSES', label: 'Expenses Summary', icon: CreditCard },
           { id: 'DAYBOOK', label: 'Day Book', icon: Calendar }
         ].map(t => (
           <button
@@ -603,15 +606,19 @@ export default function Reports() {
             </div>
             
             <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
-              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Taxable Subtotal</span>
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{isRegistered ? 'Taxable Subtotal' : 'Net Sales Subtotal'}</span>
               <p className="text-xl sm:text-2xl print:text-lg font-black text-slate-700 tracking-tight number-cell mt-1">{fmtCurrency(totalTaxableSales)}</p>
-              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Excluding output GST</span>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">{isRegistered ? 'Excluding output GST' : 'Total sales value'}</span>
             </div>
 
             <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
-              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total GST Collected</span>
-              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">{fmtCurrency(totalTaxCollected)}</p>
-              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">Output GST tax payable</span>
+              <span className="text-[10px] sm:text-xs print:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{isRegistered ? 'Total GST Collected' : 'GST System'}</span>
+              <p className="text-xl sm:text-2xl print:text-lg font-black text-emerald-600 tracking-tight number-cell mt-1">
+                {isRegistered ? fmtCurrency(totalTaxCollected) : 'Non-GST'}
+              </p>
+              <span className="text-[10px] sm:text-[11px] print:text-[9px] text-slate-400 mt-1 block">
+                {isRegistered ? 'Output GST tax payable' : 'Business is Unregistered'}
+              </span>
             </div>
           </div>
 
@@ -633,7 +640,9 @@ export default function Reports() {
                       <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/50">
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-slate-800 truncate">{s.party_name || 'Walk-in Customer'}</p>
-                          <p className="text-[10px] text-slate-400">Tax: {fmtCurrency(s.tax_amount)}</p>
+                          {isRegistered && (
+                            <p className="text-[10px] text-slate-400">Tax: {fmtCurrency(s.tax_amount)}</p>
+                          )}
                         </div>
                         <span className="text-sm font-black text-slate-900 font-mono">
                           {fmtCurrency(s.total_amount)}
@@ -650,8 +659,8 @@ export default function Reports() {
                         <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[18%]">Invoice #</th>
                         <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[14%]">Date</th>
                         <th className="py-3 px-4 print:py-1.5 print:px-2 print:w-[28%]">Customer</th>
-                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[14%]">Taxable Value</th>
-                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[12%]">Tax Amount</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[14%]">{isRegistered ? 'Taxable Value' : 'Subtotal'}</th>
+                        <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[12%]">{isRegistered ? 'Tax Amount' : 'Tax'}</th>
                         <th className="py-3 px-4 print:py-1.5 print:px-2 text-right print:w-[14%]">Total (INR)</th>
                       </tr>
                     </thead>
@@ -662,7 +671,7 @@ export default function Reports() {
                           <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-500 whitespace-nowrap">{s.date}</td>
                           <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-slate-700 whitespace-nowrap print:whitespace-normal print:break-words font-medium">{s.party_name || 'Walk-in Customer'}</td>
                           <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell whitespace-nowrap">{fmtCurrency(s.subtotal || (Number(s.total_amount || 0) - Number(s.tax_amount || 0)))}</td>
-                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell text-emerald-600 font-bold whitespace-nowrap">{fmtCurrency(s.tax_amount)}</td>
+                          <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell text-emerald-600 font-bold whitespace-nowrap">{isRegistered ? fmtCurrency(s.tax_amount) : '—'}</td>
                           <td className="py-2.5 px-4 print:py-1.5 print:px-2 text-right number-cell font-extrabold text-slate-900 whitespace-nowrap">{fmtCurrency(s.total_amount)}</td>
                         </tr>
                       ))}
@@ -678,6 +687,24 @@ export default function Reports() {
       )}
 
       {activeTab === 'GST' && (
+        !isRegistered ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center space-y-3">
+            <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">GST Reporting Disabled (Unregistered Business)</h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto mt-1">
+                This business is registered as Unregistered (Non-GST). Statutory GSTR-1 outward tax reporting is not applicable.
+              </p>
+            </div>
+            <div>
+              <a href="#/settings" className="inline-block px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-700 transition-colors">
+                Add GSTIN in Settings
+              </a>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 sm:gap-4 print:gap-2.5">
             <div className="bg-white border border-slate-200 print:border-slate-300 rounded-2xl print:rounded-xl p-3.5 sm:p-4 print:p-2.5 shadow-xs print:shadow-none">
@@ -766,6 +793,7 @@ export default function Reports() {
             )}
           </div>
         </div>
+        )
       )}
 
       {activeTab === 'PNL' && (

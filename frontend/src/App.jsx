@@ -25,6 +25,7 @@ import PublicReceipt from './components/PublicReceipt.jsx';
 import JoinInvite from './components/JoinInvite.jsx';
 import VerifyEmail from './components/VerifyEmail.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
+import AboutProject from './components/AboutProject.jsx';
 
 export default function App() {
   return (
@@ -59,6 +60,9 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/company-profile" element={<CompanyProfile />} />
           <Route path="/profile" element={<UserProfile />} />
+          <Route path="/about" element={<AboutProject />} />
+          <Route path="/about-project" element={<AboutProject />} />
+          <Route path="/about_project" element={<AboutProject />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

@@ -8,74 +8,71 @@
 {{schemaJsonLd}}
   </script>
   <style>
-    a, a:hover, a:active, a:visited {
-      text-decoration: none !important;
-    }
-    .text-muted a, a.no-underline, .no-underline {
-      text-decoration: none !important;
-      color: #64748b !important;
-      border: none !important;
-      outline: none !important;
-    }
-    u + #body a {
-      text-decoration: none !important;
-      color: inherit !important;
-    }
-    a[x-apple-data-detectors] {
-      color: inherit !important;
-      text-decoration: none !important;
-      font-size: inherit !important;
-      font-family: inherit !important;
-      font-weight: inherit !important;
-      line-height: inherit !important;
-    }
+    a, a:hover, a:active, a:visited { text-decoration: none !important; }
+    .text-muted a, a.no-underline, .no-underline { text-decoration: none !important; color: #64748b !important; border: none !important; outline: none !important; }
+    u + #body a { text-decoration: none !important; color: inherit !important; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+
     @media only screen and (max-width: 600px) {
-      .email-container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
-      .email-body { padding: 28px 20px !important; }
-      .email-header { padding: 20px 20px 16px 20px !important; }
-      .email-footer { padding: 20px 20px !important; }
-      .receipt-col { display: block !important; width: 100% !important; margin-bottom: 12px !important; }
+      .email-bg { padding: 0 !important; }
+      .email-container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; border-top: none !important; }
+      .email-header { padding: 16px 18px 14px 18px !important; }
+      .email-body { padding: 24px 18px 24px 18px !important; }
+      .email-footer { padding: 18px 18px !important; }
+      .logo-img { max-width: 130px !important; height: 26px !important; }
+      .tag-badge { font-size: 10px !important; padding: 4px 8px !important; white-space: nowrap !important; }
+      .hero-amount { font-size: 30px !important; }
+      .receipt-from-to-table { display: block !important; width: 100% !important; }
+      .receipt-col { display: block !important; width: 100% !important; padding-right: 0 !important; margin-bottom: 14px !important; box-sizing: border-box !important; }
+      .receipt-col:last-child { margin-bottom: 0 !important; }
+      .items-table { display: none !important; }
+      .items-cards { display: block !important; }
+      .btn-wrapper { width: 100% !important; }
+      .btn-wrapper td { width: 100% !important; }
+      .btn-primary { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; padding: 14px 20px !important; }
+      .totals-table td { font-size: 12px !important; }
     }
+
     @media (prefers-color-scheme: dark) {
       body, .email-bg { background-color: #0b0f19 !important; color: #f8fafc !important; }
       .email-container { background-color: #111827 !important; border-color: #1f2937 !important; }
       .email-header { background-color: #111827 !important; border-bottom-color: #1f2937 !important; }
       .email-body { background-color: #111827 !important; color: #f8fafc !important; }
       .email-card { background-color: #1f2937 !important; border-color: #374151 !important; }
+      .item-card { background-color: #1e293b !important; border-color: #334155 !important; }
       .email-footer { background-color: #0b0f19 !important; border-top-color: #1f2937 !important; }
       .text-heading { color: #f8fafc !important; }
       .text-body { color: #cbd5e1 !important; }
       .text-muted { color: #94a3b8 !important; }
-      .text-muted a, a.no-underline { color: #94a3b8 !important; text-decoration: none !important; }
       .tag-badge { background-color: #1f2937 !important; color: #94a3b8 !important; border-color: #374151 !important; }
       .table-header { color: #94a3b8 !important; border-color: #374151 !important; }
       .table-row { color: #f8fafc !important; border-color: #1f2937 !important; }
       .table-cell-muted { color: #94a3b8 !important; }
       .table-divider { border-color: #374151 !important; }
-      .btn-primary { background-color: #4f46e5 !important; color: #ffffff !important; }
+      .btn-primary { background-color: #059669 !important; color: #ffffff !important; }
       .logo-light { display: none !important; }
       .logo-dark { display: block !important; }
     }
   </style>
 </head>
-<body class="email-bg" style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #0f172a;">
-  <table role="presentation" class="email-bg" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 36px 12px;">
+<body class="email-bg" id="body" style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #0f172a;">
+  <table role="presentation" class="email-bg" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 32px 12px;">
     <tr>
       <td align="center">
         <table role="presentation" class="email-container" width="100%" style="max-width: 560px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;" cellspacing="0" cellpadding="0">
-          
+
           <tr>
-            <td class="email-header" style="padding: 24px 32px 20px 32px; border-bottom: 1px solid #f1f5f9; background-color: #ffffff;">
+            <td class="email-header" style="padding: 20px 28px 16px 28px; border-bottom: 1px solid #f1f5f9; background-color: #ffffff;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td align="left" valign="middle">
+                  <td align="left" valign="middle" style="padding-right: 8px;">
                     <a href="https://pos.hisabkhata.sumanonline.com" target="_blank" style="text-decoration: none; display: inline-block;">
-                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_light_mode-1ctlg5G6.png" alt="HisabKhata POS" class="logo-light" height="32" style="display: block; height: 32px; width: auto; max-width: 165px; border: 0;" />
-                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_dark_mode-CKXdlO9R.png" alt="HisabKhata POS" class="logo-dark" height="32" style="display: none; height: 32px; width: auto; max-width: 165px; border: 0;" />
+                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_light_mode-1ctlg5G6.png" alt="HisabKhata POS" class="logo-light logo-img" height="30" style="display: block; height: 30px; width: auto; max-width: 150px; border: 0;" />
+                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_dark_mode-CKXdlO9R.png" alt="HisabKhata POS" class="logo-dark logo-img" height="30" style="display: none; height: 30px; width: auto; max-width: 150px; border: 0;" />
                     </a>
                   </td>
-                  <td align="right" valign="middle">
-                    <span class="tag-badge" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; background-color: #f1f5f9; padding: 5px 10px; border-radius: 6px; border: 1px solid transparent;">Invoice #{{invoiceNumber}}</span>
+                  <td align="right" valign="middle" style="white-space: nowrap;">
+                    <span class="tag-badge" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; background-color: #f1f5f9; padding: 5px 10px; border-radius: 6px; border: 1px solid transparent; white-space: nowrap; display: inline-block;">Invoice #{{invoiceNumber}}</span>
                   </td>
                 </tr>
               </table>
@@ -83,44 +80,50 @@
           </tr>
 
           <tr>
-            <td class="email-body" style="padding: 36px 32px 30px 32px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
+            <td class="email-body" style="padding: 28px 28px 26px 28px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
                 <tr>
                   <td>
                     <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Payment Receipt</span>
-                    <h1 class="text-heading" style="margin: 4px 0 0 0; font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">{{currency}}{{grandTotal}}</h1>
+                    <h1 class="text-heading hero-amount" style="margin: 4px 0 0 0; font-size: 32px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">{{currency}}{{grandTotal}}</h1>
                     <p style="margin: 4px 0 0 0; font-size: 13px; color: #059669; font-weight: 700;">&bull; {{paymentStatusText}}</p>
                   </td>
                 </tr>
               </table>
 
-              <table role="presentation" class="email-card" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; margin-bottom: 26px;">
+              <table role="presentation" class="email-card" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; margin-bottom: 22px;">
                 <tr>
-                  <td class="receipt-col" valign="top" style="width: 50%; padding-right: 12px;">
-                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Billed From</span>
-                    <div class="text-heading" style="font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 3px;">{{companyName}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px;">{{companyEmailBlock}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b;">{{companyPhoneBlock}}</div>
-                  </td>
-                  <td class="receipt-col" valign="top" style="width: 50%;">
-                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Billed To</span>
-                    <div class="text-heading" style="font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 3px;">{{customerName}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px;">{{customerEmailBlock}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px;">{{customerPhoneBlock}}</div>
-                    <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px;">Date: {{invoiceDate}}</div>
+                  <td>
+                    <table role="presentation" class="receipt-from-to-table" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td class="receipt-col" valign="top" style="width: 50%; padding-right: 12px; vertical-align: top;">
+                          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Billed From</span>
+                          <div class="text-heading" style="font-size: 13px; font-weight: 700; color: #0f172a;">{{companyName}}</div>
+                          <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px; word-break: break-all;">{{companyEmailBlock}}</div>
+                          <div class="text-muted" style="font-size: 12px; color: #64748b;">{{companyPhoneBlock}}</div>
+                        </td>
+                        <td class="receipt-col" valign="top" style="width: 50%; vertical-align: top;">
+                          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Billed To</span>
+                          <div class="text-heading" style="font-size: 13px; font-weight: 700; color: #0f172a;">{{customerName}}</div>
+                          <div class="text-muted" style="font-size: 12px; color: #64748b; margin-top: 2px; word-break: break-all;">{{customerEmailBlock}}</div>
+                          <div class="text-muted" style="font-size: 12px; color: #64748b;">{{customerPhoneBlock}}</div>
+                          <div class="text-muted" style="font-size: 12px; color: #64748b;">{{invoiceDate}}</div>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>
 
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin-bottom: 20px;">
+              <table role="presentation" class="items-table" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin-bottom: 16px;">
                 <thead>
                   <tr class="table-header" style="border-bottom: 1px solid #e2e8f0;">
-                    <th align="left" style="padding: 10px 4px 10px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Item</th>
-                    <th align="center" style="padding: 10px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Qty</th>
-                    <th align="right" style="padding: 10px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">MRP</th>
-                    <th align="right" style="padding: 10px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Amt</th>
-                    <th align="right" style="padding: 10px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Tax</th>
-                    <th align="right" style="padding: 10px 0 10px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Total</th>
+                    <th align="left" style="padding: 8px 4px 8px 0; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Item</th>
+                    <th align="center" style="padding: 8px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Qty</th>
+                    <th align="right" style="padding: 8px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">MRP</th>
+                    <th align="right" style="padding: 8px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Amt</th>
+                    {{taxColumnHeader}}
+                    <th align="right" style="padding: 8px 0 8px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Total</th>
                   </tr>
                 </thead>
                 <tbody class="items-body">
@@ -135,25 +138,24 @@
                 </tbody>
               </table>
 
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="table-divider" style="border-top: 1px solid #e2e8f0; padding-top: 16px; margin-bottom: 22px;">
+              <div class="items-cards" style="display: none; margin-bottom: 16px;"></div>
+
+              <table role="presentation" class="totals-table table-divider" width="100%" cellspacing="0" cellpadding="0" style="border-top: 1px solid #e2e8f0; padding-top: 14px; margin-bottom: 20px;">
                 <tr>
-                  <td class="text-muted" style="font-size: 13px; color: #64748b; padding-bottom: 6px;">Subtotal</td>
-                  <td align="right" class="text-body" style="font-size: 13px; color: #0f172a; padding-bottom: 6px;">{{currency}}{{subtotal}}</td>
+                  <td class="text-muted" style="font-size: 13px; color: #64748b; padding-bottom: 5px;">Subtotal</td>
+                  <td align="right" class="text-body" style="font-size: 13px; color: #0f172a; padding-bottom: 5px;">{{currency}}{{subtotal}}</td>
                 </tr>
-                <tr>
-                  <td class="text-muted" style="font-size: 13px; color: #64748b; padding-bottom: 8px;">Tax / GST</td>
-                  <td align="right" class="text-body" style="font-size: 13px; color: #0f172a; padding-bottom: 8px;">{{currency}}{{taxTotal}}</td>
-                </tr>
+                {{taxTotalRow}}
                 <tr class="table-divider" style="border-top: 1px solid #e2e8f0;">
                   <td class="text-heading" style="font-size: 15px; font-weight: 700; color: #0f172a; padding-top: 10px;">Total Amount</td>
                   <td align="right" class="text-heading" style="font-size: 17px; font-weight: 800; color: #0f172a; padding-top: 10px;">{{currency}}{{grandTotal}}</td>
                 </tr>
               </table>
 
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 22px 0 22px 0;">
+              <table role="presentation" class="btn-wrapper" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 20px 0;">
                 <tr>
                   <td align="center">
-                    <a href="{{receiptUrl}}" target="_blank" style="background-color: #059669; color: #ffffff; display: inline-block; font-size: 13px; font-weight: 700; line-height: 42px; text-align: center; text-decoration: none; padding: 0 28px; border-radius: 8px; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
+                    <a href="{{receiptUrl}}" target="_blank" class="btn-primary" style="background-color: #059669; color: #ffffff; display: inline-block; font-size: 14px; font-weight: 700; line-height: 1; text-align: center; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 2px 6px rgba(5,150,105,0.25); letter-spacing: 0.1px;">
                       Download Receipt
                     </a>
                   </td>
@@ -167,13 +169,13 @@
           </tr>
 
           <tr>
-            <td class="email-footer" style="padding: 22px 32px; background-color: #f8fafc; border-top: 1px solid #f1f5f9;">
+            <td class="email-footer" style="padding: 20px 28px; background-color: #f8fafc; border-top: 1px solid #f1f5f9;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
-                    <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 700; color: #475569;">HisabKhata POS</p>
-                    <p class="text-muted" style="margin: 0 0 8px 0; font-size: 11px; line-height: 16px; color: #64748b;">
-                      GST Billing, Inventory & Team Khata Ledger. You received this automated receipt for your purchase.
+                    <p style="margin: 0 0 3px 0; font-size: 11px; font-weight: 700; color: #475569;">HisabKhata POS</p>
+                    <p class="text-muted" style="margin: 0 0 6px 0; font-size: 11px; line-height: 16px; color: #64748b;">
+                      GST Billing, Inventory &amp; Team Khata Ledger. You received this automated receipt for your purchase.
                     </p>
                     <p class="text-muted" style="margin: 0; font-size: 11px; color: #94a3b8;">
                       &copy; {{year}} HisabKhata POS. All rights reserved.
@@ -188,5 +190,14 @@
       </td>
     </tr>
   </table>
+
+  <style>
+    @media only screen and (max-width: 600px) {
+      .items-table { display: none !important; }
+      .items-cards { display: block !important; }
+      .receipt-from-to-table tr { display: block !important; }
+      .receipt-col { display: block !important; width: 100% !important; padding-right: 0 !important; }
+    }
+  </style>
 </body>
 </html>

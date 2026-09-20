@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   Globe, Receipt, Printer, Users,
   Save, Check, RefreshCw, Smartphone, Volume2, Lock,
   FileText, Sparkles, Building2, Bell, AlertCircle, Percent,
   Bluetooth, BluetoothConnected, BluetoothOff, QrCode, Zap,
   ChevronDown, LayoutTemplate, Landmark, CreditCard, PenTool,
-  CheckCircle2, Sliders, Eye, Mail
+  CheckCircle2, Sliders, Eye, Mail, ShieldAlert
 } from 'lucide-react';
 import {
   isBluetoothSupported, connectBluetoothPrinter, disconnectBluetoothPrinter,
   getConnectedPrinter, printTestReceipt
 } from '../utils/bluetoothPrinter.js';
-import { getUserSettings, saveUserSettings } from '../api/client.js';
+import { getUserSettings, saveUserSettings, isBusinessGstRegistered } from '../api/client.js';
 import StaffManagement from './StaffManagement.jsx';
 import SmtpConfiguration from './SmtpConfiguration.jsx';
 
@@ -66,6 +66,91 @@ function CustomSelect({ value, onChange, options = [], placeholder = 'Select Opt
                 >
                   <span className="truncate">{opt.label}</span>
                   {isSelected && <Check size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0 ml-2" />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CurrencySelect({ value, onChange, currencies = [], className = '' }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = currencies.find(c => String(c.code) === String(value)) || currencies[0];
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className={`w-full px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border rounded-xl shadow-xs transition-all flex items-center justify-between gap-2 text-left cursor-pointer ${
+          open
+            ? 'border-emerald-500 ring-2 ring-emerald-100 dark:ring-emerald-950 bg-emerald-50/20 dark:bg-emerald-950/30'
+            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/60 dark:hover:bg-slate-800/60'
+        }`}
+      >
+        <div className="flex items-center gap-2.5 truncate">
+          {selected?.iso && (
+            <img
+              src={`https://flagcdn.com/w40/${selected.iso}.png`}
+              alt={selected.code}
+              className="w-5 h-3.5 object-cover rounded-xs shadow-2xs shrink-0 border border-slate-200/60"
+            />
+          )}
+          <span className="truncate">{selected?.name} ({selected?.symbol})</span>
+        </div>
+        <ChevronDown
+          size={14}
+          className={`text-slate-400 shrink-0 transition-transform duration-200 ${
+            open ? 'rotate-180 text-emerald-600 dark:text-emerald-400' : ''
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-[calc(100%+5px)] left-0 right-0 z-[70] bg-white dark:bg-[#0e1424] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-64 flex flex-col p-1 animate-fade-in">
+          <div className="overflow-y-auto max-h-56 scrollbar-thin p-0.5 space-y-0.5">
+            {currencies.map((c) => {
+              const isSelected = String(c.code) === String(value);
+              return (
+                <div
+                  key={c.code}
+                  onClick={() => {
+                    onChange(c.code);
+                    setOpen(false);
+                  }}
+                  className={`px-3 py-2 text-xs rounded-lg cursor-pointer transition-all flex items-center justify-between ${
+                    isSelected
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 font-bold'
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white font-medium'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <img
+                      src={`https://flagcdn.com/w40/${c.iso}.png`}
+                      alt={c.code}
+                      className="w-5 h-3.5 object-cover rounded-xs shadow-2xs shrink-0 border border-slate-200/60"
+                    />
+                    <span className="truncate">{c.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="font-mono text-slate-400 dark:text-slate-500 font-bold text-[11px]">{c.symbol}</span>
+                    {isSelected && <Check size={13} className="text-emerald-600 dark:text-emerald-400" />}
+                  </div>
                 </div>
               );
             })}
@@ -193,6 +278,20 @@ export default function Settings() {
     groqModel: localStorage.getItem('groq_model') || 'qwen/qwen3.6-27b'
   });
 
+  const [isGstRegistered, setIsGstRegistered] = useState(() => isBusinessGstRegistered());
+
+  useEffect(() => {
+    const onProfileUpdated = () => {
+      setIsGstRegistered(isBusinessGstRegistered());
+    };
+    window.addEventListener('company_profile_updated', onProfileUpdated);
+    window.addEventListener('storage', onProfileUpdated);
+    return () => {
+      window.removeEventListener('company_profile_updated', onProfileUpdated);
+      window.removeEventListener('storage', onProfileUpdated);
+    };
+  }, []);
+
   useEffect(() => {
     setBtPrinter(getConnectedPrinter());
     const onConnected = (e) => setBtPrinter({ name: e.detail?.name || 'Bluetooth Printer' });
@@ -282,16 +381,21 @@ export default function Settings() {
     if (e) e.preventDefault();
     setSaving(true);
     try {
-      localStorage.setItem('hk_pos_settings', JSON.stringify(settings));
-      localStorage.setItem('app_currency', settings.currency);
-      localStorage.setItem('default_tax_rate', settings.defaultTaxRate);
-      localStorage.setItem('hk_active_tax_rates', JSON.stringify(settings.enabledTaxSlabs));
-      localStorage.setItem('hk_tax_calculation_mode', settings.taxCalculationMode || 'EXCLUSIVE');
-      localStorage.setItem('groq_api_key', settings.groqApiKey || '');
-      localStorage.setItem('groq_model', settings.groqModel || 'qwen/qwen3.6-27b');
+      const updatedSettings = { ...settings };
+      if (!isGstRegistered) {
+        updatedSettings.defaultTaxRate = '0';
+        updatedSettings.enabledTaxSlabs = ['0'];
+      }
+      localStorage.setItem('hk_pos_settings', JSON.stringify(updatedSettings));
+      localStorage.setItem('app_currency', updatedSettings.currency);
+      localStorage.setItem('default_tax_rate', updatedSettings.defaultTaxRate);
+      localStorage.setItem('hk_active_tax_rates', JSON.stringify(updatedSettings.enabledTaxSlabs));
+      localStorage.setItem('hk_tax_calculation_mode', updatedSettings.taxCalculationMode || 'EXCLUSIVE');
+      localStorage.setItem('groq_api_key', updatedSettings.groqApiKey || '');
+      localStorage.setItem('groq_model', updatedSettings.groqModel || 'qwen/qwen3.6-27b');
       window.dispatchEvent(new Event('hk_settings_updated'));
 
-      await saveUserSettings(settings);
+      await saveUserSettings(updatedSettings);
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 2500);
     } catch {
@@ -315,13 +419,13 @@ export default function Settings() {
   };
 
   const currencies = [
-    { code: 'INR', symbol: '₹', name: 'Indian Rupee (INR)', flag: '🇮🇳' },
-    { code: 'USD', symbol: '$', name: 'US Dollar (USD)', flag: '🇺🇸' },
-    { code: 'EUR', symbol: '€', name: 'Euro (EUR)', flag: '🇪🇺' },
-    { code: 'GBP', symbol: '£', name: 'British Pound (GBP)', flag: '🇬🇧' },
-    { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham (AED)', flag: '🇦🇪' },
-    { code: 'BDT', symbol: '৳', name: 'Bangladeshi Taka (BDT)', flag: '🇧🇩' },
-    { code: 'NPR', symbol: 'रू', name: 'Nepalese Rupee (NPR)', flag: '🇳🇵' }
+    { code: 'INR', symbol: '₹', name: 'Indian Rupee (INR)', iso: 'in' },
+    { code: 'USD', symbol: '$', name: 'US Dollar (USD)', iso: 'us' },
+    { code: 'EUR', symbol: '€', name: 'Euro (EUR)', iso: 'eu' },
+    { code: 'GBP', symbol: '£', name: 'British Pound (GBP)', iso: 'gb' },
+    { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham (AED)', iso: 'ae' },
+    { code: 'BDT', symbol: '৳', name: 'Bangladeshi Taka (BDT)', iso: 'bd' },
+    { code: 'NPR', symbol: 'रू', name: 'Nepalese Rupee (NPR)', iso: 'np' }
   ];
 
   const standardSlabs = [
@@ -795,93 +899,136 @@ export default function Settings() {
             saving={saving}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Default Tax Rate (For New Items & Fast Billing)</label>
-              <select
-                value={settings.defaultTaxRate}
-                onChange={(e) => setSettings({ ...settings, defaultTaxRate: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none font-bold bg-white focus:border-emerald-500"
+          {!isGstRegistered && (
+            <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
+                  <ShieldAlert size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-black text-amber-900 dark:text-amber-200">Business Operating as Unregistered (Non-GST)</h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/70 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200">
+                      Tax Disabled
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                    GST tax calculation is disabled across the whole system. All sales and purchases will automatically be issued as non-tax Bills of Supply with 0% tax.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/company-profile"
+                className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition-colors shadow-xs inline-flex items-center gap-1.5"
               >
-                {settings.enabledTaxSlabs.map(r => {
-                  const matched = standardSlabs.find(s => s.rate === r);
+                <span>Register GSTIN</span>
+              </Link>
+            </div>
+          )}
+
+          <div className={`space-y-5 ${!isGstRegistered ? 'opacity-60 pointer-events-none select-none' : ''}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Default Tax Rate (For New Items & Fast Billing)</label>
+                <select
+                  value={!isGstRegistered ? '0' : settings.defaultTaxRate}
+                  onChange={(e) => setSettings({ ...settings, defaultTaxRate: e.target.value })}
+                  disabled={!isGstRegistered}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none font-bold bg-white focus:border-emerald-500 disabled:bg-slate-100"
+                >
+                  {!isGstRegistered ? (
+                    <option value="0">GST 0% — Non-GST / Exempt (Unregistered)</option>
+                  ) : (
+                    settings.enabledTaxSlabs.map(r => {
+                      const matched = standardSlabs.find(s => s.rate === r);
+                      return (
+                        <option key={r} value={r}>
+                          GST {r}% {matched ? `— ${matched.label}` : ''}
+                        </option>
+                      );
+                    })
+                  )}
+                </select>
+                <span className="text-[10px] text-slate-400 block mt-1">
+                  {!isGstRegistered ? 'Locked to 0% because business is unregistered' : 'Pre-selected automatically on POS counters and Item creation'}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Tax Calculation Mode</label>
+                <select
+                  value={settings.taxCalculationMode}
+                  onChange={(e) => setSettings({ ...settings, taxCalculationMode: e.target.value })}
+                  disabled={!isGstRegistered}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold disabled:bg-slate-100"
+                >
+                  <option value="EXCLUSIVE">Tax Exclusive (Prices + GST computed at checkout)</option>
+                  <option value="INCLUSIVE">Tax Inclusive (Prices entered already include GST / MRP)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-2">Active GST Slabs (Available in Dropdowns)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {standardSlabs.map(slab => {
+                  const isEnabled = !isGstRegistered ? slab.rate === '0' : settings.enabledTaxSlabs.includes(slab.rate);
+                  const isDefault = !isGstRegistered ? slab.rate === '0' : settings.defaultTaxRate === slab.rate;
                   return (
-                    <option key={r} value={r}>
-                      GST {r}% {matched ? `— ${matched.label}` : ''}
-                    </option>
+                    <div
+                      key={slab.rate}
+                      onClick={() => isGstRegistered && toggleTaxSlab(slab.rate)}
+                      className={`p-3 rounded-xl border transition-all flex items-center justify-between ${
+                        isGstRegistered ? 'cursor-pointer' : 'cursor-not-allowed'
+                      } ${isEnabled
+                          ? 'bg-emerald-50/50 border-emerald-300 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 opacity-60 hover:opacity-100'
+                        }`}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-slate-900">{slab.label}</span>
+                          {isDefault && (
+                            <span className="px-1.5 py-0.2 text-[9px] font-bold bg-emerald-600 text-white rounded">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500">{slab.desc}</p>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        disabled={!isGstRegistered}
+                        onChange={() => { }}
+                        className="w-4 h-4 text-emerald-600 rounded"
+                      />
+                    </div>
                   );
                 })}
-              </select>
-              <span className="text-[10px] text-slate-400 block mt-1">Pre-selected automatically on POS counters and Item creation</span>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Tax Calculation Mode</label>
-              <select
-                value={settings.taxCalculationMode}
-                onChange={(e) => setSettings({ ...settings, taxCalculationMode: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold"
-              >
-                <option value="EXCLUSIVE">Tax Exclusive (Prices + GST computed at checkout)</option>
-                <option value="INCLUSIVE">Tax Inclusive (Prices entered already include GST / MRP)</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 block mb-2">Active GST Slabs (Available in Dropdowns)</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {standardSlabs.map(slab => {
-                const isEnabled = settings.enabledTaxSlabs.includes(slab.rate);
-                const isDefault = settings.defaultTaxRate === slab.rate;
-                return (
-                  <div
-                    key={slab.rate}
-                    onClick={() => toggleTaxSlab(slab.rate)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${isEnabled
-                        ? 'bg-emerald-50/50 border-emerald-300 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 opacity-60 hover:opacity-100'
-                      }`}
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-900">{slab.label}</span>
-                        {isDefault && (
-                          <span className="px-1.5 py-0.2 text-[9px] font-bold bg-emerald-600 text-white rounded">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-500">{slab.desc}</p>
-                    </div>
-
-                    <input
-                      type="checkbox"
-                      checked={isEnabled}
-                      onChange={() => { }}
-                      className="w-4 h-4 text-emerald-600 rounded"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 space-y-2">
-            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.isCompositionScheme}
-                onChange={(e) => setSettings({ ...settings, isCompositionScheme: e.target.checked })}
-                className="w-4 h-4 text-emerald-600 rounded mt-0.5"
-              />
-              <div>
-                <span className="text-xs font-bold text-slate-900 block">GST Composition Dealer Scheme (1% Flat)</span>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Prints "Composition Taxable Person, not eligible to collect tax on supplies" on customer tax invoices.
-                </p>
               </div>
-            </label>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <label className={`flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors ${
+                isGstRegistered ? 'cursor-pointer' : 'cursor-not-allowed'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(isGstRegistered && settings.isCompositionScheme)}
+                  disabled={!isGstRegistered}
+                  onChange={(e) => setSettings({ ...settings, isCompositionScheme: e.target.checked })}
+                  className="w-4 h-4 text-emerald-600 rounded mt-0.5"
+                />
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">GST Composition Dealer Scheme (1% Flat)</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Prints "Composition Taxable Person, not eligible to collect tax on supplies" on customer tax invoices.
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
       );
@@ -901,17 +1048,11 @@ export default function Settings() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Store Currency</label>
-              <select
+              <CurrencySelect
                 value={settings.currency}
-                onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none font-bold bg-white focus:border-emerald-500"
-              >
-                {currencies.map(c => (
-                  <option key={c.code} value={c.code}>
-                    {c.flag} {c.name} ({c.symbol})
-                  </option>
-                ))}
-              </select>
+                onChange={(code) => setSettings({ ...settings, currency: code })}
+                currencies={currencies}
+              />
               <span className="text-[10px] text-slate-400 block mt-1">Default is INR (₹ Indian Rupee) with Indian numerical format</span>
             </div>
 

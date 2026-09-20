@@ -36,8 +36,8 @@ app.use('/api/*', cors({
     }
     return origin;
   },
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Company-ID'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Company-ID', 'Accept', 'Origin', 'X-Requested-With'],
   credentials: true,
 }));
 
@@ -1570,7 +1570,7 @@ app.delete('/api/team/invitations/:id', authMiddleware, companyScopeMiddleware, 
   }
 });
 
-app.patch('/api/team/members/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
+const updateMemberHandler = async (c) => {
   try {
     const companyId = c.get('companyId');
     const memberId = c.req.param('id');
@@ -1594,7 +1594,10 @@ app.patch('/api/team/members/:id', authMiddleware, companyScopeMiddleware, owner
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
-});
+};
+
+app.patch('/api/team/members/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, updateMemberHandler);
+app.put('/api/team/members/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, updateMemberHandler);
 
 app.delete('/api/team/members/:id', authMiddleware, companyScopeMiddleware, ownerOnlyMiddleware, async (c) => {
   try {
@@ -2728,9 +2731,21 @@ app.get('/api/public/invoices/:slug', async (c) => {
 
     const company = await c.env.DB.prepare(`SELECT * FROM companies WHERE id = ?`).bind(invoiceRow.company_id).first();
 
+    const isGstRegistered = Boolean(company?.gst_number && String(company.gst_number).trim().length > 0);
+    let sanitizedInvoice = { ...invoiceRow };
+    let sanitizedItems = (items || []).map(it => ({ ...it }));
+    if (!isGstRegistered) {
+      sanitizedInvoice.subtotal = sanitizedInvoice.total_amount;
+      sanitizedInvoice.tax_amount = 0;
+      sanitizedItems = sanitizedItems.map(it => {
+        const correctedRate = it.quantity > 0 ? (Number(it.total) / Number(it.quantity)) : Number(it.rate);
+        return { ...it, rate: correctedRate, tax_rate: 0 };
+      });
+    }
+
     return c.json({
-      ...invoiceRow,
-      items: items || [],
+      ...sanitizedInvoice,
+      items: sanitizedItems,
       company: company || null
     });
   } catch (err) {
@@ -2758,11 +2773,149 @@ app.get('/api/invoices/:id', authMiddleware, companyScopeMiddleware, async (c) =
     ]);
 
     if (!invoice.results.length) return c.json({ error: 'Invoice not found' }, 404);
-    return c.json({ ...invoice.results[0], items: items.results });
+
+    const invRow = invoice.results[0];
+    const company = await c.env.DB.prepare(`SELECT gst_number FROM companies WHERE id = ?`).bind(invRow.company_id).first();
+    const isGstRegistered = Boolean(company?.gst_number && String(company.gst_number).trim().length > 0);
+    let sanitizedInvoice = { ...invRow };
+    let sanitizedItems = (items.results || []).map(it => ({ ...it }));
+    if (!isGstRegistered) {
+      sanitizedInvoice.subtotal = sanitizedInvoice.total_amount;
+      sanitizedInvoice.tax_amount = 0;
+      sanitizedItems = sanitizedItems.map(it => {
+        const correctedRate = it.quantity > 0 ? (Number(it.total) / Number(it.quantity)) : Number(it.rate);
+        return { ...it, rate: correctedRate, tax_rate: 0 };
+      });
+    }
+    return c.json({ ...sanitizedInvoice, items: sanitizedItems });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
 });
+
+async function ensureDefaultFundAccounts(db, companyId) {
+  try {
+    await db.prepare(`
+      DELETE FROM fund_accounts
+      WHERE company_id = ?
+        AND opening_balance = 0
+        AND current_balance = 0
+        AND id NOT IN (
+          SELECT MIN(id) FROM fund_accounts WHERE company_id = ? GROUP BY lower(trim(name))
+        )
+        AND id NOT IN (
+          SELECT DISTINCT account_id FROM fund_transactions WHERE company_id = ?
+        )
+    `).bind(companyId, companyId, companyId).run();
+  } catch (e) {}
+
+  let { results } = await db.prepare(`SELECT * FROM fund_accounts WHERE company_id = ? ORDER BY created_at ASC`).bind(companyId).all();
+  const list = results || [];
+  const hasCash = list.some(a => a.type === 'CASH' || (a.name && a.name.toLowerCase().includes('cash')));
+  const hasBank = list.some(a => a.type === 'BANK' || a.type === 'UPI' || (a.name && a.name.toLowerCase().includes('bank')));
+
+  if (!hasCash || !hasBank) {
+    const stmts = [];
+    if (!hasCash) {
+      stmts.push(
+        db.prepare(`
+          INSERT INTO fund_accounts (company_id, name, type, opening_balance, current_balance)
+          SELECT ?, 'Cash in Hand', 'CASH', 0, 0
+          WHERE NOT EXISTS (
+            SELECT 1 FROM fund_accounts
+            WHERE company_id = ? AND (type = 'CASH' OR lower(trim(name)) = 'cash in hand')
+          )
+        `).bind(companyId, companyId)
+      );
+    }
+    if (!hasBank) {
+      stmts.push(
+        db.prepare(`
+          INSERT INTO fund_accounts (company_id, name, type, opening_balance, current_balance)
+          SELECT ?, 'Bank / UPI Account', 'BANK', 0, 0
+          WHERE NOT EXISTS (
+            SELECT 1 FROM fund_accounts
+            WHERE company_id = ? AND (type = 'BANK' OR type = 'UPI' OR lower(trim(name)) = 'bank / upi account')
+          )
+        `).bind(companyId, companyId)
+      );
+    }
+    if (stmts.length > 0) {
+      await db.batch(stmts);
+    }
+    const refreshed = await db.prepare(`SELECT * FROM fund_accounts WHERE company_id = ? ORDER BY created_at ASC`).bind(companyId).all();
+    results = refreshed.results || [];
+  }
+  return results || [];
+}
+
+async function syncUnlinkedInvoicesToFunds(db, companyId) {
+  const defaultAccounts = await ensureDefaultFundAccounts(db, companyId);
+  const cashAccount = defaultAccounts.find(a => a.type === 'CASH') || defaultAccounts[0];
+  const bankAccount = defaultAccounts.find(a => a.type === 'BANK' || a.type === 'UPI') || cashAccount;
+  if (!cashAccount) return;
+
+  const unlinkedInvoices = await db.prepare(`
+    SELECT i.*, p.name as party_name
+    FROM invoices i
+    LEFT JOIN parties p ON i.party_id = p.id
+    WHERE i.company_id = ? 
+      AND i.amount_paid > 0
+      AND i.type != 'QUOTATION'
+      AND i.id NOT IN (
+        SELECT ref_id FROM fund_transactions 
+        WHERE company_id = ? AND ref_type = 'INVOICE' AND ref_id IS NOT NULL
+      )
+    ORDER BY i.date ASC, i.created_at ASC
+  `).bind(companyId, companyId).all();
+
+  if (unlinkedInvoices.results && unlinkedInvoices.results.length > 0) {
+    const stmts = [];
+    let cashDelta = 0;
+    let bankDelta = 0;
+
+    for (const inv of unlinkedInvoices.results) {
+      const isSales = inv.type === 'SALES';
+      const isCash = (inv.payment_mode || 'CASH').toUpperCase() === 'CASH';
+      const targetAcc = isCash ? cashAccount : bankAccount;
+      const direction = isSales ? 'IN' : 'OUT';
+      const amt = Number(inv.amount_paid);
+      const partyLabel = inv.party_name ? ` (${inv.party_name})` : '';
+      const desc = isSales 
+        ? `Sales Receipt: ${inv.invoice_number}${partyLabel}`
+        : `Purchase Payment: ${inv.invoice_number}${partyLabel}`;
+
+      stmts.push(
+        db.prepare(`
+          INSERT INTO fund_transactions (company_id, account_id, amount, direction, ref_type, ref_id, date, description)
+          VALUES (?, ?, ?, ?, 'INVOICE', ?, ?, ?)
+        `).bind(companyId, targetAcc.id, amt, direction, inv.id, inv.date || inv.created_at?.slice(0, 10), desc)
+      );
+
+      const balChange = direction === 'IN' ? amt : -amt;
+      if (targetAcc.id === cashAccount.id) {
+        cashDelta += balChange;
+      } else {
+        bankDelta += balChange;
+      }
+    }
+
+    if (cashDelta !== 0) {
+      stmts.push(
+        db.prepare(`UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?`).bind(cashDelta, cashAccount.id, companyId)
+      );
+    }
+    if (bankDelta !== 0 && bankAccount.id !== cashAccount.id) {
+      stmts.push(
+        db.prepare(`UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?`).bind(bankDelta, bankAccount.id, companyId)
+      );
+    }
+
+    if (stmts.length > 0) {
+      await db.batch(stmts);
+    }
+  }
+}
 
 app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
@@ -2783,9 +2936,18 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
     if (!type || !invoice_number || !items?.length)
       return c.json({ error: 'type, invoice_number, and items[] are required' }, 400);
 
-    const subtotal = body.subtotal !== undefined ? Number(body.subtotal) : items.reduce((s, it) => s + (it.quantity * it.rate), 0);
-    const tax_amount = body.tax_amount !== undefined ? Number(body.tax_amount) : items.reduce((s, it) => s + (it.quantity * it.rate * (it.tax_rate || 0) / 100), 0);
-    const total_amount = body.total_amount !== undefined ? Number(body.total_amount) : (subtotal + tax_amount);
+    const comp = await db.prepare(`SELECT gst_number FROM companies WHERE id = ?`).bind(companyId).first();
+    const isGstRegistered = Boolean(comp?.gst_number && comp.gst_number.trim().length > 0);
+
+    const tax_amount = isGstRegistered
+      ? (body.tax_amount !== undefined ? Number(body.tax_amount) : items.reduce((s, it) => s + (it.quantity * it.rate * (it.tax_rate || 0) / 100), 0))
+      : 0;
+    const total_amount = isGstRegistered
+      ? (body.total_amount !== undefined ? Number(body.total_amount) : (items.reduce((s, it) => s + (it.quantity * it.rate), 0) + tax_amount))
+      : (body.total_amount !== undefined ? Number(body.total_amount) : (body.discount_amount !== undefined ? Math.max(0, items.reduce((s, it) => s + (it.quantity * it.rate), 0) - Number(body.discount_amount)) : items.reduce((s, it) => s + (it.quantity * it.rate), 0)));
+    const subtotal = isGstRegistered
+      ? (body.subtotal !== undefined ? Number(body.subtotal) : items.reduce((s, it) => s + (it.quantity * it.rate), 0))
+      : total_amount;
     const balance_due = Math.max(0, total_amount - Number(amount_paid));
 
     const invRes = await db.prepare(`
@@ -2850,7 +3012,7 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
           item.unit || 'Pcs',
           item.quantity,
           item.rate,
-          item.tax_rate || 0,
+          isGstRegistered ? (item.tax_rate || 0) : 0,
           effectiveMrp
         )
       );
@@ -2877,6 +3039,35 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
           WHERE id = ? AND company_id = ?
         `).bind(balanceDelta, party_id, companyId)
       );
+    }
+
+    if (Number(amount_paid) > 0 && type.toUpperCase() !== 'QUOTATION') {
+      const defaultAccounts = await ensureDefaultFundAccounts(db, companyId);
+      const isCash = (payment_mode || 'CASH').toUpperCase() === 'CASH';
+      const targetAcc = isCash
+        ? (defaultAccounts.find(a => a.type === 'CASH') || defaultAccounts[0])
+        : (defaultAccounts.find(a => a.type === 'BANK' || a.type === 'UPI') || defaultAccounts[0]);
+
+      if (targetAcc) {
+        const isSales = type.toUpperCase() === 'SALES';
+        const direction = isSales ? 'IN' : 'OUT';
+        const fundDelta = isSales ? Number(amount_paid) : -Number(amount_paid);
+        const partyRow = party_id ? await db.prepare(`SELECT name FROM parties WHERE id = ? AND company_id = ?`).bind(party_id, companyId).first() : null;
+        const partyLabel = partyRow?.name ? ` (${partyRow.name})` : '';
+        const fundDesc = isSales ? `Sales Receipt: ${invoice_number}${partyLabel}` : `Purchase Payment: ${invoice_number}${partyLabel}`;
+
+        stmts.push(
+          db.prepare(`
+            INSERT INTO fund_transactions (company_id, account_id, amount, direction, ref_type, ref_id, date, description)
+            VALUES (?, ?, ?, ?, 'INVOICE', ?, ?, ?)
+          `).bind(companyId, targetAcc.id, Number(amount_paid), direction, invoiceId, date || new Date().toISOString().slice(0, 10), fundDesc)
+        );
+        stmts.push(
+          db.prepare(`
+            UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?
+          `).bind(fundDelta, targetAcc.id, companyId)
+        );
+      }
     }
 
     try {
@@ -2935,42 +3126,42 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
             paymentMethod: payment_mode || 'CASH',
             items: items.map(it => {
               const qty = Number(it.quantity) || 1;
-              const rate = Number(it.rate) || 0;
+              const itemTotal = it.total !== undefined && it.total !== null ? Number(it.total) : (qty * Number(it.rate || 0));
+              const effectiveRate = !isGstRegistered ? (itemTotal / qty) : Number(it.rate) || 0;
               const discount = Number(it.discount) || 0;
-              const netRate = rate - discount;
-              const amt = Number((qty * netRate).toFixed(2));
-              const taxRate = Number(it.tax_rate) || 0;
-              const taxAmt = it.tax_amount !== undefined && it.tax_amount !== null
+              const netRate = effectiveRate - discount;
+              const amt = !isGstRegistered ? itemTotal.toFixed(2) : Number((qty * netRate).toFixed(2)).toFixed(2);
+              const taxRate = isGstRegistered ? (Number(it.tax_rate) || 0) : 0;
+              const taxAmt = !isGstRegistered ? 0 : (it.tax_amount !== undefined && it.tax_amount !== null
                 ? Number(it.tax_amount)
-                : Number((amt * taxRate / 100).toFixed(2));
-              const total = it.total !== undefined && it.total !== null
-                ? Number(it.total)
-                : Number((amt + taxAmt).toFixed(2));
+                : Number((Number(amt) * taxRate / 100).toFixed(2)));
+              const total = itemTotal.toFixed(2);
               const dbInfo = it.item_id ? itemDbMap[it.item_id] : null;
-              const grossUnit = total / (qty || 1);
+              const grossUnit = itemTotal / (qty || 1);
               const mrp = (it.mrp !== undefined && it.mrp !== null && Number(it.mrp) > 0)
                 ? Number(it.mrp)
                 : ((dbInfo && Number(dbInfo.mrp) > 0)
                     ? Number(dbInfo.mrp)
                     : ((dbInfo && Number(dbInfo.sale_price) > 0)
                         ? Number(dbInfo.sale_price)
-                        : (grossUnit > 0 ? grossUnit : rate)));
+                        : (grossUnit > 0 ? grossUnit : effectiveRate)));
               return {
                 name: it.item_name,
                 qty: qty,
                 mrp: mrp.toFixed(2),
-                rate: rate.toFixed(2),
-                amt: amt.toFixed(2),
+                rate: effectiveRate.toFixed(2),
+                amt: amt,
                 tax: taxAmt.toFixed(2),
-                total: total.toFixed(2)
+                total: total
               };
             }),
-            subtotal: Number(subtotal).toFixed(2),
-            taxTotal: Number(tax_amount).toFixed(2),
+            subtotal: isGstRegistered ? Number(subtotal).toFixed(2) : Number(total_amount).toFixed(2),
+            taxTotal: isGstRegistered ? Number(tax_amount).toFixed(2) : '0.00',
             grandTotal: Number(total_amount).toFixed(2),
             paidAmount: Number(amount_paid).toFixed(2),
             balanceDue: Number(balance_due).toFixed(2),
-            currency: '₹'
+            currency: '₹',
+            isRegistered: isGstRegistered
           });
 
           await mailer.sendMail({
@@ -3031,7 +3222,8 @@ app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddlewar
       return c.json({ error: 'SMTP is not configured. Please configure SMTP in Settings > SMTP Configurations.' }, 400);
     }
 
-    const company = await db.prepare(`SELECT name, email, phone FROM companies WHERE id = ?`).bind(companyId).first();
+    const company = await db.prepare(`SELECT name, email, phone, gst_number FROM companies WHERE id = ?`).bind(companyId).first();
+    const isGstReg = Boolean(company?.gst_number && String(company.gst_number).trim().length > 0);
     const itemsRes = await db.prepare(`
       SELECT ii.*, it.mrp as db_item_mrp, it.sale_price as db_sale_price
       FROM invoice_items ii
@@ -3054,41 +3246,41 @@ app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddlewar
       paymentMethod: invoice.payment_mode || 'CASH',
       items: items.map(it => {
         const qty = Number(it.quantity) || 1;
-        const rate = Number(it.rate) || 0;
+        const itemTotal = it.total !== undefined && it.total !== null ? Number(it.total) : (qty * Number(it.rate || 0));
+        const effectiveRate = !isGstReg ? (itemTotal / qty) : Number(it.rate) || 0;
         const discount = Number(it.discount) || 0;
-        const netRate = rate - discount;
-        const amt = Number((qty * netRate).toFixed(2));
-        const taxRate = Number(it.tax_rate) || 0;
-        const taxAmt = it.tax_amount !== undefined && it.tax_amount !== null
+        const netRate = effectiveRate - discount;
+        const amt = !isGstReg ? itemTotal.toFixed(2) : Number((qty * netRate).toFixed(2)).toFixed(2);
+        const taxRate = isGstReg ? (Number(it.tax_rate) || 0) : 0;
+        const taxAmt = !isGstReg ? 0 : (it.tax_amount !== undefined && it.tax_amount !== null
           ? Number(it.tax_amount)
-          : Number((amt * taxRate / 100).toFixed(2));
-        const total = it.total !== undefined && it.total !== null
-          ? Number(it.total)
-          : Number((amt + taxAmt).toFixed(2));
-        const grossUnit = total / (qty || 1);
+          : Number((Number(amt) * taxRate / 100).toFixed(2)));
+        const total = itemTotal.toFixed(2);
+        const grossUnit = itemTotal / (qty || 1);
         const mrp = (it.mrp !== undefined && it.mrp !== null && Number(it.mrp) > 0)
           ? Number(it.mrp)
           : (Number(it.db_item_mrp) > 0
               ? Number(it.db_item_mrp)
               : (Number(it.db_sale_price) > 0
                   ? Number(it.db_sale_price)
-                  : (grossUnit > 0 ? grossUnit : rate)));
+                  : (grossUnit > 0 ? grossUnit : effectiveRate)));
         return {
           name: it.item_name,
           qty: qty,
           mrp: mrp.toFixed(2),
-          rate: rate.toFixed(2),
-          amt: amt.toFixed(2),
+          rate: effectiveRate.toFixed(2),
+          amt: amt,
           tax: taxAmt.toFixed(2),
-          total: total.toFixed(2)
+          total: total
         };
       }),
-      subtotal: Number(invoice.subtotal).toFixed(2),
-      taxTotal: Number(invoice.tax_amount).toFixed(2),
+      subtotal: isGstReg ? Number(invoice.subtotal).toFixed(2) : Number(invoice.total_amount).toFixed(2),
+      taxTotal: isGstReg ? Number(invoice.tax_amount).toFixed(2) : '0.00',
       grandTotal: Number(invoice.total_amount).toFixed(2),
       paidAmount: Number(invoice.amount_paid || 0).toFixed(2),
       balanceDue: Number(invoice.total_amount - (invoice.amount_paid || 0)).toFixed(2),
-      currency: '₹'
+      currency: '₹',
+      isRegistered: isGstReg
     });
 
     await mailer.sendMail({
@@ -3149,6 +3341,17 @@ app.delete('/api/invoices/:id', authMiddleware, companyScopeMiddleware, async (c
     for (const txn of (relatedTxns?.results || [])) {
       stmts.push(
         db.prepare(`DELETE FROM transactions WHERE id = ? AND company_id = ?`).bind(txn.id, companyId)
+      );
+    }
+
+    const relatedFundTxns = await db.prepare(`SELECT * FROM fund_transactions WHERE ref_type = 'INVOICE' AND ref_id = ? AND company_id = ?`).bind(id, companyId).all();
+    for (const fTx of (relatedFundTxns?.results || [])) {
+      const rollbackDelta = fTx.direction === 'IN' ? -Number(fTx.amount) : Number(fTx.amount);
+      stmts.push(
+        db.prepare(`UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?`).bind(rollbackDelta, fTx.account_id, companyId)
+      );
+      stmts.push(
+        db.prepare(`DELETE FROM fund_transactions WHERE id = ? AND company_id = ?`).bind(fTx.id, companyId)
       );
     }
 
@@ -3315,6 +3518,32 @@ app.post('/api/transactions', authMiddleware, companyScopeMiddleware, async (c) 
       }
     }
 
+    const defaultAccounts = await ensureDefaultFundAccounts(db, companyId);
+    const isCash = txnPaymentMode.toUpperCase() === 'CASH';
+    const targetAcc = isCash
+      ? (defaultAccounts.find(a => a.type === 'CASH') || defaultAccounts[0])
+      : (defaultAccounts.find(a => a.type === 'BANK' || a.type === 'UPI') || defaultAccounts[0]);
+
+    if (targetAcc) {
+      const direction = upperType === 'PAYMENT_IN' ? 'IN' : 'OUT';
+      const fundDelta = direction === 'IN' ? numAmount : -numAmount;
+      const party = await db.prepare(`SELECT name FROM parties WHERE id = ? AND company_id = ?`).bind(party_id, companyId).first();
+      const partyName = party?.name || 'Party';
+      const desc = upperType === 'PAYMENT_IN' ? `Payment Received: ${partyName}` : `Payment Made: ${partyName}`;
+
+      stmts.push(
+        db.prepare(`
+          INSERT INTO fund_transactions (company_id, account_id, amount, direction, ref_type, ref_id, date, description)
+          VALUES (?, ?, ?, ?, 'PAYMENT', ?, ?, ?)
+        `).bind(companyId, targetAcc.id, numAmount, direction, null, txnDate, desc)
+      );
+      stmts.push(
+        db.prepare(`
+          UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?
+        `).bind(fundDelta, targetAcc.id, companyId)
+      );
+    }
+
     await db.batch(stmts);
     return c.json({ success: true }, 201);
   } catch (err) {
@@ -3390,18 +3619,42 @@ app.post('/api/expenses', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
     const body = await c.req.json();
-    const { category, amount, date, notes } = body;
+    const { category, amount, date, notes, payment_mode } = body;
 
     if (!category || amount === undefined) {
       return c.json({ error: 'category and amount are required' }, 400);
     }
 
     const result = await c.env.DB.prepare(`
-      INSERT INTO expenses (company_id, category, amount, date, notes)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(companyId, category, amount, date || new Date().toISOString().slice(0, 10), notes || null).run();
+      INSERT INTO expenses (company_id, category, amount, payment_mode, date, notes)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(companyId, category, amount, payment_mode || 'CASH', date || new Date().toISOString().slice(0, 10), notes || null).run();
 
     return c.json({ id: result.meta.last_row_id, ...body }, 201);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.put('/api/expenses/:id', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const { category, amount, date, notes, payment_mode } = body;
+
+    if (!category || amount === undefined) {
+      return c.json({ error: 'category and amount are required' }, 400);
+    }
+
+    const result = await c.env.DB.prepare(`
+      UPDATE expenses
+      SET category = ?, amount = ?, payment_mode = ?, date = ?, notes = ?
+      WHERE id = ? AND company_id = ?
+    `).bind(category, amount, payment_mode || 'CASH', date || new Date().toISOString().slice(0, 10), notes || null, id, companyId).run();
+
+    if (result.meta.changes === 0) return c.json({ error: 'Expense not found' }, 404);
+    return c.json({ id: Number(id), ...body });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
@@ -3575,7 +3828,9 @@ app.post('/api/items/stock-adjustment', authMiddleware, companyScopeMiddleware, 
 app.get('/api/fund/accounts', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
-    const { results } = await c.env.DB.prepare(`SELECT * FROM fund_accounts WHERE company_id = ? ORDER BY created_at ASC`).bind(companyId).all();
+    const db = c.env.DB;
+    await syncUnlinkedInvoicesToFunds(db, companyId);
+    const { results } = await db.prepare(`SELECT * FROM fund_accounts WHERE company_id = ? ORDER BY created_at ASC`).bind(companyId).all();
     return c.json(results);
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -3597,13 +3852,45 @@ app.post('/api/fund/accounts', authMiddleware, companyScopeMiddleware, async (c)
   }
 });
 
+app.put('/api/fund/accounts/:id', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const id = c.req.param('id');
+    const { name, type, account_number, ifsc_code } = await c.req.json();
+    if (!name || !type) return c.json({ error: 'name and type are required' }, 400);
+    const result = await c.env.DB.prepare(`
+      UPDATE fund_accounts
+      SET name = ?, type = ?, account_number = ?, ifsc_code = ?
+      WHERE id = ? AND company_id = ?
+    `).bind(name, type.toUpperCase(), account_number || null, ifsc_code || null, id, companyId).run();
+    if (result.meta.changes === 0) return c.json({ error: 'Account not found' }, 404);
+    return c.json({ id: Number(id), name, type, account_number, ifsc_code });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/fund/accounts/:id', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const companyId = c.get('companyId');
+    const id = c.req.param('id');
+    const result = await c.env.DB.prepare(`DELETE FROM fund_accounts WHERE id = ? AND company_id = ?`).bind(id, companyId).run();
+    if (result.meta.changes === 0) return c.json({ error: 'Account not found' }, 404);
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 app.get('/api/fund/transactions', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
-    const { results } = await c.env.DB.prepare(`
+    const db = c.env.DB;
+    await syncUnlinkedInvoicesToFunds(db, companyId);
+    const { results } = await db.prepare(`
       SELECT t.*, a.name as account_name, a.type as account_type
       FROM fund_transactions t JOIN fund_accounts a ON t.account_id = a.id
-      WHERE t.company_id = ? ORDER BY t.date DESC, t.created_at DESC LIMIT 100
+      WHERE t.company_id = ? ORDER BY t.date DESC, t.created_at DESC LIMIT 200
     `).bind(companyId).all();
     return c.json(results);
   } catch (err) {
@@ -3630,6 +3917,62 @@ app.post('/api/fund/transactions', authMiddleware, companyScopeMiddleware, async
       `).bind(delta, account_id, companyId)
     ]);
     return c.json({ success: true }, 201);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/fund/transfer', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const companyId = c.get('companyId');
+    const { from_account_id, to_account_id, amount, date, description } = await c.req.json();
+    if (!from_account_id || !to_account_id || !amount || Number(amount) <= 0) {
+      return c.json({ error: 'from_account_id, to_account_id, and valid positive amount are required' }, 400);
+    }
+    if (String(from_account_id) === String(to_account_id)) {
+      return c.json({ error: 'Source and destination accounts must be different' }, 400);
+    }
+    const numAmount = Number(amount);
+    const txDate = date || new Date().toISOString().slice(0, 10);
+    const desc = description ? description.trim() : 'Fund Transfer';
+
+    await db.batch([
+      db.prepare(`
+        INSERT INTO fund_transactions (company_id, account_id, amount, direction, date, description)
+        VALUES (?, ?, ?, 'OUT', ?, ?)
+      `).bind(companyId, from_account_id, numAmount, txDate, `Transfer to A/C #${to_account_id}: ${desc}`),
+      db.prepare(`
+        UPDATE fund_accounts SET current_balance = current_balance - ? WHERE id = ? AND company_id = ?
+      `).bind(numAmount, from_account_id, companyId),
+      db.prepare(`
+        INSERT INTO fund_transactions (company_id, account_id, amount, direction, date, description)
+        VALUES (?, ?, ?, 'IN', ?, ?)
+      `).bind(companyId, to_account_id, numAmount, txDate, `Transfer from A/C #${from_account_id}: ${desc}`),
+      db.prepare(`
+        UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?
+      `).bind(numAmount, to_account_id, companyId)
+    ]);
+
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/fund/transactions/:id', authMiddleware, companyScopeMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const companyId = c.get('companyId');
+    const id = c.req.param('id');
+    const tx = await db.prepare(`SELECT * FROM fund_transactions WHERE id = ? AND company_id = ?`).bind(id, companyId).first();
+    if (!tx) return c.json({ error: 'Transaction not found' }, 404);
+    const delta = tx.direction === 'IN' ? -Number(tx.amount) : Number(tx.amount);
+    await db.batch([
+      db.prepare(`UPDATE fund_accounts SET current_balance = current_balance + ? WHERE id = ? AND company_id = ?`).bind(delta, tx.account_id, companyId),
+      db.prepare(`DELETE FROM fund_transactions WHERE id = ? AND company_id = ?`).bind(id, companyId)
+    ]);
+    return c.json({ success: true });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
@@ -3664,9 +4007,13 @@ app.get('/api/reports/sales', authMiddleware, companyScopeMiddleware, async (c) 
 app.get('/api/reports/gst', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
+    const comp = await c.env.DB.prepare(`SELECT gst_number FROM companies WHERE id = ?`).bind(companyId).first();
+    if (!comp?.gst_number || !comp.gst_number.trim()) {
+      return c.json([]);
+    }
     const { results } = await c.env.DB.prepare(`
       SELECT i.invoice_number, i.date, i.subtotal, i.tax_amount, i.total_amount,
-             p.name as customer_name, p.gst_number as customer_gstin, p.state as customer_state
+             p.name as customer_name, p.gst_number as customer_gstin, COALESCE(p.state, '') as customer_state
       FROM invoices i LEFT JOIN parties p ON i.party_id = p.id
       WHERE i.company_id = ? AND i.type = 'SALES'
       ORDER BY i.date DESC

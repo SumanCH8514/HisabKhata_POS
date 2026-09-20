@@ -160,11 +160,6 @@ export default function Referral() {
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-7 space-y-4">
-            <div className="inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-bold text-emerald-300">
-              <Zap size={14} className="text-amber-300" />
-              <span>Give 1 Month Free Pro • Get 1 Month Free Pro</span>
-            </div>
-
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight">
               Share HisabKhata POS with other store owners
             </h2>

@@ -1,6 +1,6 @@
 {
   "name": "hisabkhata-pos-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "HisabKhata POS — Cloudflare Worker Backend (Hono.js)",
   "private": true,
   "scripts": {
@@ -14,6 +14,6 @@
     "hono": "^4.4.11"
   },
   "devDependencies": {
-    "wrangler": "^3.67.0"
+    "wrangler": "^4.135.0"
   }
 }

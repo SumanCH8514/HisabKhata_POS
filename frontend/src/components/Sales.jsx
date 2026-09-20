@@ -5,9 +5,10 @@ import {
   FileText, Plus, Search, Filter, Printer, Download,
   CheckCircle2, Clock, AlertCircle, ChevronDown, Trash2,
   Calendar, User, ArrowRight, Eye, RefreshCw, X, CreditCard,
-  MoreVertical, ExternalLink, Copy, Check, Mail
+  MoreVertical, ExternalLink, Copy, Check, Mail,
+  Receipt, Hash, ChevronRight
 } from 'lucide-react';
-import { getInvoices, createInvoice, deleteInvoice, createTransaction, sendInvoiceReceipt, getParties, getItems, fmtCurrency } from '../api/client.js';
+import { getInvoices, createInvoice, deleteInvoice, createTransaction, sendInvoiceReceipt, getParties, getItems, fmtCurrency, isBusinessGstRegistered, getActiveTaxRates, getDefaultTaxRate } from '../api/client.js';
 
 const WhatsAppIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -163,33 +164,33 @@ function InvoiceMobileActionSheet({
       className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[9999] flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col animate-slide-up">
+      <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[90vh] flex flex-col animate-slide-up">
         <div className="pt-3 pb-1 flex justify-center sm:hidden">
-          <div className="w-10 h-1 bg-slate-200 rounded-full" />
+          <div className="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full" />
         </div>
 
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/60">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/60 dark:bg-[#0b1120]">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-sm text-slate-900">{invoice.invoice_number}</span>
+              <span className="font-mono font-black text-sm text-slate-900 dark:text-white">{invoice.invoice_number}</span>
               <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase ${
-                isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                isPaid ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300'
               }`}>
                 {isPaid ? 'PAID' : `DUE: ${fmtCurrency(invoice.balance_due)}`}
               </span>
             </div>
-            <p className="text-xs text-slate-600 font-semibold truncate mt-0.5">
-              {invoice.party_name || 'Walk-in Customer'} • <span className="text-slate-400 font-normal">{invoice.date}</span>
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold truncate mt-0.5">
+              {invoice.party_name || 'Walk-in Customer'} • <span className="text-slate-400 dark:text-slate-500 font-normal">{invoice.date}</span>
             </p>
           </div>
 
           <div className="text-right shrink-0">
-            <span className="text-base font-black text-slate-900 font-mono block">
+            <span className="text-base font-black text-slate-900 dark:text-white font-mono block">
               {fmtCurrency(invoice.total_amount || 0)}
             </span>
             <button
               onClick={onClose}
-              className="mt-1 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer inline-flex items-center justify-center"
+              className="mt-1 p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer inline-flex items-center justify-center"
             >
               <X size={16} />
             </button>
@@ -204,14 +205,14 @@ function InvoiceMobileActionSheet({
                 onClose();
                 onRecordPayment(invoice);
               }}
-              className="w-full flex items-center gap-3 p-3 rounded-xl border border-rose-200/80 bg-rose-50/50 hover:bg-rose-50 text-left transition-colors cursor-pointer group"
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-rose-200/80 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/30 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-left transition-colors cursor-pointer group"
             >
               <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                 <CreditCard size={18} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-rose-900">Record Payment</p>
-                <p className="text-[10px] text-rose-700 font-medium">Collect remaining {fmtCurrency(invoice.balance_due)} pending balance</p>
+                <p className="text-xs font-bold text-rose-900 dark:text-rose-300">Record Payment</p>
+                <p className="text-[10px] text-rose-700 dark:text-rose-400 font-medium">Collect remaining {fmtCurrency(invoice.balance_due)} pending balance</p>
               </div>
             </button>
           )}
@@ -221,14 +222,14 @@ function InvoiceMobileActionSheet({
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer group"
           >
             <div className="w-9 h-9 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Eye size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-900 group-hover:text-blue-600">View Digital Receipt</p>
-              <p className="text-[10px] text-slate-400">Open full interactive online bill in browser</p>
+              <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">View Digital Receipt</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-400">Open full interactive online bill in browser</p>
             </div>
             <ExternalLink size={14} className="text-slate-400 shrink-0 mr-1" />
           </a>
@@ -238,14 +239,14 @@ function InvoiceMobileActionSheet({
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 hover:bg-emerald-50 text-left transition-colors cursor-pointer group"
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 bg-emerald-50/40 dark:bg-emerald-950/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-left transition-colors cursor-pointer group"
           >
             <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <WhatsAppIcon size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-emerald-900">Share on WhatsApp</p>
-              <p className="text-[10px] text-emerald-700/90">Send digital receipt directly to customer's WhatsApp</p>
+              <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300">Share on WhatsApp</p>
+              <p className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90">Send digital receipt directly to customer's WhatsApp</p>
             </div>
           </a>
 
@@ -255,14 +256,14 @@ function InvoiceMobileActionSheet({
               onEmailInvoice?.(invoice);
               onClose();
             }}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border border-blue-200/80 bg-blue-50/40 hover:bg-blue-50 text-left transition-colors cursor-pointer group"
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-blue-200/80 dark:border-blue-800/50 bg-blue-50/40 dark:bg-blue-950/30 hover:bg-blue-50 dark:hover:bg-blue-950/50 text-left transition-colors cursor-pointer group"
           >
             <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Mail size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-blue-900">Email Invoice Receipt</p>
-              <p className="text-[10px] text-blue-700/90">{invoice.party_email ? `Send directly to ${invoice.party_email}` : 'Enter customer email & dispatch receipt'}</p>
+              <p className="text-xs font-bold text-blue-900 dark:text-blue-300">Email Invoice Receipt</p>
+              <p className="text-[10px] text-blue-700/90 dark:text-blue-400/90">{invoice.party_email ? `Send directly to ${invoice.party_email}` : 'Enter customer email & dispatch receipt'}</p>
             </div>
           </button>
 
@@ -272,14 +273,14 @@ function InvoiceMobileActionSheet({
               window.open(`/invoice/${invoice.id}/print`, '_blank');
               onClose();
             }}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer group"
           >
             <div className="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <FileText size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-900 group-hover:text-indigo-600">Print Tax Invoice (A4)</p>
-              <p className="text-[10px] text-slate-400">Standard GST invoice format for PDF or A4 printer</p>
+              <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Print Tax Invoice (A4)</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-400">Standard GST invoice format for PDF or A4 printer</p>
             </div>
           </button>
 
@@ -289,28 +290,28 @@ function InvoiceMobileActionSheet({
               window.open(`/invoice/${invoice.id}/print-thermal`, '_blank');
               onClose();
             }}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer group"
           >
-            <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-slate-800 dark:bg-slate-700 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Printer size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-900 group-hover:text-slate-700">Print Thermal Slip (POS)</p>
-              <p className="text-[10px] text-slate-400">2-inch / 3-inch (80mm) receipt for counter POS printer</p>
+              <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-slate-700 dark:group-hover:text-slate-300">Print Thermal Slip (POS)</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-400">2-inch / 3-inch (80mm) receipt for counter POS printer</p>
             </div>
           </button>
 
           <button
             type="button"
             onClick={handleCopyLink}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer group"
           >
             <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               {copied ? <Check size={18} /> : <Copy size={18} />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-900">{copied ? 'Link Copied to Clipboard!' : 'Copy Digital Receipt Link'}</p>
-              <p className="text-[10px] text-slate-400">{copied ? 'Direct customer link copied' : 'Copy link to share via SMS or any chat'}</p>
+              <p className="text-xs font-bold text-slate-900 dark:text-white">{copied ? 'Link Copied to Clipboard!' : 'Copy Digital Receipt Link'}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-400">{copied ? 'Direct customer link copied' : 'Copy link to share via SMS or any chat'}</p>
             </div>
           </button>
 
@@ -321,24 +322,24 @@ function InvoiceMobileActionSheet({
                 onClose();
                 onDeleteInvoice(invoice.id, invoice.invoice_number);
               }}
-              className="w-full flex items-center gap-3 p-3 rounded-xl border border-rose-200 bg-rose-50/40 hover:bg-rose-100/60 text-left transition-colors cursor-pointer group"
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-rose-200/80 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/30 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 text-left transition-colors cursor-pointer group"
             >
               <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                 <Trash2 size={18} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-rose-700">Delete Invoice / Transaction</p>
-                <p className="text-[10px] text-rose-600/80">Revert item stock and remove balance from Khata</p>
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-400">Delete Invoice / Transaction</p>
+                <p className="text-[10px] text-rose-600/80 dark:text-rose-400/80">Revert item stock and remove balance from Khata</p>
               </div>
             </button>
           </div>
         </div>
 
-        <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0b1120]">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-98 transition-all cursor-pointer shadow-2xs"
+            className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-98 transition-all cursor-pointer shadow-2xs"
           >
             Close
           </button>
@@ -374,7 +375,9 @@ export default function Sales() {
     }
   };
 
-  const [form, setForm] = useState({
+  const [isRegistered, setIsRegistered] = useState(() => isBusinessGstRegistered());
+
+  const [form, setForm] = useState(() => ({
     type: 'SALES',
     invoice_number: `INV-${Date.now().toString().slice(-6)}`,
     date: new Date().toISOString().slice(0, 10),
@@ -382,8 +385,8 @@ export default function Sales() {
     payment_mode: 'CASH',
     amount_paid: 0,
     notes: '',
-    items: [{ item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: 18 }]
-  });
+    items: [{ item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: isBusinessGstRegistered() ? getDefaultTaxRate() : 0 }]
+  }));
 
   const loadData = () => {
     setLoading(true);
@@ -406,14 +409,23 @@ export default function Sales() {
     const handleUpdate = () => {
       loadData();
     };
+    const handleProfileUpdate = () => {
+      setIsRegistered(isBusinessGstRegistered());
+    };
     window.addEventListener('hk:payment-updated', handleUpdate);
-    return () => window.removeEventListener('hk:payment-updated', handleUpdate);
+    window.addEventListener('company_profile_updated', handleProfileUpdate);
+    window.addEventListener('storage', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('hk:payment-updated', handleUpdate);
+      window.removeEventListener('company_profile_updated', handleProfileUpdate);
+      window.removeEventListener('storage', handleProfileUpdate);
+    };
   }, []);
 
   const handleAddItemRow = () => {
     setForm(prev => ({
       ...prev,
-      items: [...prev.items, { item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: 18 }]
+      items: [...prev.items, { item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: isRegistered ? getDefaultTaxRate() : 0 }]
     }));
   };
 
@@ -437,7 +449,7 @@ export default function Sales() {
             item_name: selected.name,
             unit: selected.unit || 'Pcs',
             rate: selected.sale_price || 0,
-            tax_rate: selected.tax_rate || 0,
+            tax_rate: isRegistered ? (selected.tax_rate || 0) : 0,
             mrp: (selected.mrp !== undefined && selected.mrp !== null && Number(selected.mrp) > 0) ? Number(selected.mrp) : (selected.sale_price || 0)
           };
         }
@@ -449,30 +461,35 @@ export default function Sales() {
   };
 
   const subtotal = form.items.reduce((sum, it) => sum + ((Number(it.quantity) || 0) * (Number(it.rate) || 0) - (Number(it.discount) || 0)), 0);
-  const taxTotal = form.items.reduce((sum, it) => {
+  const taxTotal = isRegistered ? form.items.reduce((sum, it) => {
     const base = (Number(it.quantity) || 0) * (Number(it.rate) || 0) - (Number(it.discount) || 0);
     return sum + (base * (Number(it.tax_rate) || 0) / 100);
-  }, 0);
+  }, 0) : 0;
   const grandTotal = subtotal + taxTotal;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (form.items.some(it => !it.item_name)) {
-      alert('Please fill all item names');
+    if (!form.items || form.items.length === 0 || form.items.some(it => !it.item_name && !it.item_id)) {
+      alert('Please select or specify all item names');
       return;
     }
     setSubmitting(true);
     try {
       const selectedParty = parties.find(p => String(p.id) === String(form.party_id));
+      const paid = form.payment_mode === 'CREDIT' ? 0 : (form.amount_paid !== '' && form.amount_paid !== undefined && form.amount_paid !== null ? Number(form.amount_paid) : grandTotal);
       const res = await createInvoice({
         ...form,
         customer_email: selectedParty?.email || null,
         customer_name: selectedParty?.name || null,
         customer_phone: selectedParty?.phone || null,
         subtotal,
-        tax_amount: taxTotal,
+        tax_amount: isRegistered ? taxTotal : 0,
         total_amount: grandTotal,
-        amount_paid: Number(form.amount_paid) || grandTotal
+        amount_paid: paid,
+        items: form.items.map(it => ({
+          ...it,
+          tax_rate: isRegistered ? (Number(it.tax_rate) || 0) : 0
+        }))
       });
       setShowModal(false);
       loadData();
@@ -555,7 +572,7 @@ export default function Sales() {
                   payment_mode: 'CASH',
                   amount_paid: 0,
                   notes: '',
-                  items: [{ item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: 18 }]
+                  items: [{ item_id: '', item_name: '', unit: 'Pcs', quantity: 1, rate: 0, discount: 0, tax_rate: isRegistered ? getDefaultTaxRate() : 0 }]
                 });
                 setShowModal(true);
               }}
@@ -658,7 +675,9 @@ export default function Sales() {
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/50">
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-800 truncate">{inv.party_name || 'Walk-in Customer'}</p>
-                        <p className="text-[10px] text-slate-400">GST Tax: {fmtCurrency(inv.tax_amount || 0)}</p>
+                        {isRegistered && (
+                          <p className="text-[10px] text-slate-400">GST Tax: {fmtCurrency(inv.tax_amount || 0)}</p>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -714,7 +733,7 @@ export default function Sales() {
                     <th className="py-3 px-4">Invoice #</th>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4 text-right">Tax (GST)</th>
+                    <th className="py-3 px-4 text-right">{isRegistered ? 'Tax (GST)' : 'Tax'}</th>
                     <th className="py-3 px-4 text-right">Grand Total</th>
                     <th className="py-3 px-4 text-right">Status</th>
                     <th className="py-3 px-4 text-center">Action</th>
@@ -728,7 +747,7 @@ export default function Sales() {
                         <td className="py-3 px-4 font-bold font-mono text-slate-900 whitespace-nowrap">{inv.invoice_number}</td>
                         <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{inv.date}</td>
                         <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">{inv.party_name || 'Walk-in Customer'}</td>
-                        <td className="py-3 px-4 text-right font-medium text-slate-600 number-cell whitespace-nowrap">{fmtCurrency(inv.tax_amount || 0)}</td>
+                        <td className="py-3 px-4 text-right font-medium text-slate-600 number-cell whitespace-nowrap">{isRegistered ? fmtCurrency(inv.tax_amount || 0) : '—'}</td>
                         <td className="py-3 px-4 text-right font-extrabold text-slate-900 number-cell whitespace-nowrap">{fmtCurrency(inv.total_amount || 0)}</td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           {isPaid ? (
@@ -808,47 +827,75 @@ export default function Sales() {
       </div>
 
       {showModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-3 sm:p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 animate-fade-in overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/70">
-              <h2 className="text-sm font-bold text-slate-900">New Sales Tax Invoice</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer">
-                <X size={16} />
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/75 backdrop-blur-xs z-[9999] flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-4 transition-opacity animate-fade-in" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[94vh] sm:max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800 animate-slide-up overflow-hidden">
+            <div className="pt-2.5 pb-1 flex justify-center sm:hidden">
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full" />
+            </div>
+
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-white dark:bg-[#0f172a]">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-2xs">
+                  <Receipt size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight truncate">
+                    {isRegistered ? 'New Sales Tax Invoice' : 'New Sales Invoice (Non-GST / Bill of Supply)'}
+                  </h2>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate">
+                    {isRegistered ? 'Fast POS GST Billing, Itemized Ledger & Digital Receipt' : 'Non-GST Sales Bill (0% Tax), Ledger & Digital Receipt'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+              >
+                <X size={16} strokeWidth={2.5} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50/70 dark:bg-[#0b1120] border border-slate-200/80 dark:border-slate-800 rounded-2xl">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">Invoice Number</label>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <Hash size={12} className="text-emerald-500" /> Invoice Number
+                  </label>
                   <input
                     type="text"
                     required
                     value={form.invoice_number}
                     onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-bold"
+                    className="w-full px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">Invoice Date</label>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <Calendar size={12} className="text-emerald-500" /> Invoice Date
+                  </label>
                   <input
                     type="date"
                     required
                     value={form.date}
                     onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none"
+                    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">Customer / Party</label>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <User size={12} className="text-emerald-500" /> Customer / Party
+                  </label>
                   <select
                     value={form.party_id}
                     onChange={(e) => setForm({ ...form, party_id: e.target.value })}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none"
+                    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 text-slate-900 dark:text-white"
                   >
-                    <option value="">Walk-in Customer</option>
+                    <option value="">Walk-in Customer (Instant Bill)</option>
                     {parties.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} {p.phone ? `(${p.phone})` : ''}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.phone ? `(${p.phone})` : ''} {p.current_balance ? `• Bal: ₹${p.current_balance}` : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -856,102 +903,373 @@ export default function Sales() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-800">Invoice Line Items</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Invoice Line Items</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black">
+                      {form.items.length} {form.items.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={handleAddItemRow}
-                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-95 rounded-xl shadow-xs transition-all flex items-center gap-1 cursor-pointer"
                   >
-                    + Add Item
+                    <Plus size={13} strokeWidth={2.5} />
+                    <span>Add Item</span>
                   </button>
                 </div>
 
-                <div className="space-y-2">
-                  {form.items.map((row, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-200">
-                      <div className="col-span-4">
-                        <select
-                          value={row.item_id}
-                          onChange={(e) => handleItemChange(idx, 'item_id', e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded bg-white"
-                        >
-                          <option value="">Select product or type below…</option>
-                          {items.map(it => (
-                            <option key={it.id} value={it.id}>{it.name} (₹{it.sale_price})</option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          placeholder="Item description"
-                          value={row.item_name}
-                          onChange={(e) => handleItemChange(idx, 'item_name', e.target.value)}
-                          className="w-full px-2 py-0.5 text-[11px] border border-slate-200 rounded mt-1 bg-white"
-                        />
+                <div className="hidden md:block overflow-x-auto border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10.5px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3">Item & Description</th>
+                        <th className="py-2.5 px-2 w-20 text-center">Qty</th>
+                        <th className="py-2.5 px-2 w-20">Unit</th>
+                        <th className="py-2.5 px-2 w-28 text-right">Rate (₹)</th>
+                        {isRegistered && <th className="py-2.5 px-2 w-20 text-center">GST %</th>}
+                        <th className="py-2.5 px-3 w-28 text-right">Amount (₹)</th>
+                        <th className="py-2.5 px-2 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900/40">
+                      {form.items.map((row, idx) => {
+                        const base = Math.max(0, (Number(row.quantity) || 0) * (Number(row.rate) || 0) - (Number(row.discount) || 0));
+                        const tax = isRegistered ? (base * (Number(row.tax_rate) || 0) / 100) : 0;
+                        const lineTotal = base + tax;
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            <td className="py-2.5 px-3">
+                              <select
+                                value={row.item_id}
+                                onChange={(e) => handleItemChange(idx, 'item_id', e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                              >
+                                <option value="">Select product or type custom below…</option>
+                                {items.map(it => (
+                                  <option key={it.id} value={it.id}>{it.name} • ₹{it.sale_price}</option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="Item name or custom specification"
+                                value={row.item_name}
+                                onChange={(e) => handleItemChange(idx, 'item_name', e.target.value)}
+                                className="w-full px-2.5 py-1 text-[11px] border border-slate-200/80 dark:border-slate-800 rounded-lg mt-1 bg-slate-50/60 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-emerald-500"
+                              />
+                            </td>
+                            <td className="py-2.5 px-2 align-top">
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="any"
+                                value={row.quantity}
+                                onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-center outline-none focus:border-emerald-500"
+                              />
+                            </td>
+                            <td className="py-2.5 px-2 align-top">
+                              <select
+                                value={row.unit || 'Pcs'}
+                                onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                              >
+                                {['Pcs', 'Kg', 'Gm', 'Ltr', 'Ml', 'Box', 'Pkt', 'Mtr', 'Roll'].map(u => (
+                                  <option key={u} value={u}>{u}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-2.5 px-2 align-top">
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={row.rate}
+                                onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
+                              />
+                            </td>
+                            {isRegistered && (
+                              <td className="py-2.5 px-2 align-top">
+                                <select
+                                  value={row.tax_rate ?? 18}
+                                  onChange={(e) => handleItemChange(idx, 'tax_rate', Number(e.target.value))}
+                                  className="w-full px-1.5 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-center outline-none focus:border-emerald-500"
+                                >
+                                  {getActiveTaxRates().map(r => (
+                                    <option key={r} value={r}>{r}%</option>
+                                  ))}
+                                </select>
+                              </td>
+                            )}
+                            <td className="py-2.5 px-3 align-top text-right">
+                              <span className="font-mono font-black text-xs text-slate-900 dark:text-white block mt-1.5">
+                                {fmtCurrency(lineTotal)}
+                              </span>
+                              {isRegistered && (
+                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 block">
+                                  GST: {fmtCurrency(tax)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-2 align-top text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItemRow(idx)}
+                                disabled={form.items.length === 1}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer transition-colors mt-1 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="Remove item"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {form.items.map((row, idx) => {
+                    const base = Math.max(0, (Number(row.quantity) || 0) * (Number(row.rate) || 0) - (Number(row.discount) || 0));
+                    const tax = isRegistered ? (base * (Number(row.tax_rate) || 0) / 100) : 0;
+                    const lineTotal = base + tax;
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3.5 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-2.5 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                              Item #{idx + 1}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemRow(idx)}
+                            disabled={form.items.length === 1}
+                            className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md transition-colors disabled:opacity-25"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+                            Product or Item Name
+                          </label>
+                          <select
+                            value={row.item_id}
+                            onChange={(e) => handleItemChange(idx, 'item_id', e.target.value)}
+                            className="w-full px-2.5 py-2 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500 mb-1.5"
+                          >
+                            <option value="">Select product from inventory…</option>
+                            {items.map(it => (
+                              <option key={it.id} value={it.id}>{it.name} • ₹{it.sale_price}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Item name / specifications"
+                            value={row.item_name}
+                            onChange={(e) => handleItemChange(idx, 'item_name', e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div className={`grid ${isRegistered ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1">Quantity</label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              value={row.quantity}
+                              onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-center outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1">Rate (₹)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={row.rate}
+                              onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-right outline-none"
+                            />
+                          </div>
+                          {isRegistered && (
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1">GST %</label>
+                              <select
+                                value={row.tax_rate ?? 18}
+                                onChange={(e) => handleItemChange(idx, 'tax_rate', Number(e.target.value))}
+                                className="w-full px-1.5 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-center outline-none"
+                              >
+                                {getActiveTaxRates().map(r => (
+                                  <option key={r} value={r}>{r}%</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/50 dark:border-slate-800 text-xs">
+                          {isRegistered ? (
+                            <span className="text-[11px] text-slate-400">GST: {fmtCurrency(tax)}</span>
+                          ) : (
+                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">Non-GST (0%)</span>
+                          )}
+                          <span className="font-bold text-slate-900 dark:text-white font-mono text-sm">
+                            Line Total: {fmtCurrency(lineTotal)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="Qty"
-                          value={row.quantity}
-                          onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded bg-white text-center"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Rate"
-                          value={row.rate}
-                          onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded bg-white text-right"
-                        />
-                      </div>
-                      <div className="col-span-3 text-right font-bold text-xs">
-                        {fmtCurrency(row.quantity * row.rate)}
-                      </div>
-                      <div className="col-span-1 text-center">
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start p-4 bg-slate-50/70 dark:bg-[#0b1120] border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+                <div className="md:col-span-7 space-y-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1.5">
+                      Payment Mode & Settlement
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                      {[
+                        { key: 'CASH', label: 'Cash' },
+                        { key: 'UPI', label: 'UPI / QR' },
+                        { key: 'BANK', label: 'Bank' },
+                        { key: 'CARD', label: 'Card' },
+                        { key: 'CREDIT', label: 'Credit / Due' }
+                      ].map(m => (
                         <button
+                          key={m.key}
                           type="button"
-                          onClick={() => handleRemoveItemRow(idx)}
-                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                          onClick={() => {
+                            setForm(prev => ({
+                              ...prev,
+                              payment_mode: m.key,
+                              amount_paid: m.key === 'CREDIT' ? 0 : (prev.amount_paid !== undefined && prev.amount_paid !== null ? prev.amount_paid : grandTotal)
+                            }));
+                          }}
+                          className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center border ${
+                            form.payment_mode === m.key
+                              ? 'bg-emerald-500 text-white border-emerald-500 shadow-xs'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                          }`}
                         >
-                          <Trash2 size={13} />
+                          {m.label}
                         </button>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                          Amount Received (₹)
+                        </label>
+                        {form.payment_mode !== 'CREDIT' && (
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, amount_paid: grandTotal }))}
+                            className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                          >
+                            Paid Full
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={form.payment_mode === 'CREDIT' ? 0 : (form.amount_paid !== undefined && form.amount_paid !== null ? form.amount_paid : grandTotal)}
+                        onChange={(e) => setForm({ ...form, amount_paid: e.target.value })}
+                        disabled={form.payment_mode === 'CREDIT'}
+                        className="w-full px-3 py-1.5 text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:opacity-60"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Notes / Remarks (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Delivered via courier, PO #123"
+                        value={form.notes || ''}
+                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-5 bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span>{isRegistered ? 'Taxable Subtotal' : 'Subtotal'}</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{fmtCurrency(subtotal)}</span>
+                  </div>
+                  {isRegistered && (
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <span>GST Tax Amount</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{fmtCurrency(taxTotal)}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Invoice Total</span>
+                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      {fmtCurrency(grandTotal)}
+                    </span>
+                  </div>
+                  {form.payment_mode === 'CREDIT' || (form.amount_paid !== '' && Number(form.amount_paid) < grandTotal) ? (
+                    <div className="pt-1.5 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-xl">
+                      <span>Balance Due (Khata)</span>
+                      <span className="font-mono">{fmtCurrency(Math.max(0, grandTotal - (Number(form.amount_paid) || 0)))}</span>
+                    </div>
+                  ) : (
+                    <div className="pt-1 flex items-center justify-between text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-0.5 rounded-xl">
+                      <span>Payment Status</span>
+                      <span>Fully Paid</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center text-xs">
-                <div>
-                  <span className="text-slate-500">Taxable: </span>
-                  <span className="font-bold">{fmtCurrency(subtotal)}</span>
-                  <span className="text-slate-400 ml-3">GST: </span>
-                  <span className="font-bold">{fmtCurrency(taxTotal)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-600 font-bold mr-2">Grand Total:</span>
-                  <span className="text-base font-black text-emerald-600 font-mono">{fmtCurrency(grandTotal)}</span>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer transition-colors text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg shadow-xs cursor-pointer"
+                  className="w-full sm:w-auto px-6 py-2.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-98 rounded-xl shadow-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
                 >
-                  {submitting ? 'Saving…' : 'Generate Invoice'}
+                  {submitting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Generating Invoice…</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} strokeWidth={2.5} />
+                      <span>Generate & Save Invoice</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -6,11 +6,17 @@
   <title>Verify your email address - HisabKhata POS</title>
   <style>
     @media only screen and (max-width: 600px) {
-      .email-container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
-      .email-body { padding: 28px 20px !important; }
-      .email-header { padding: 20px 20px 16px 20px !important; }
-      .email-footer { padding: 20px 20px !important; }
-      .btn-primary { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+      .email-bg { padding: 0 !important; }
+      .email-container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; border-top: none !important; }
+      .email-header { padding: 16px 18px 14px 18px !important; }
+      .email-body { padding: 24px 18px 24px 18px !important; }
+      .email-footer { padding: 18px 18px !important; }
+      .logo-img { max-width: 130px !important; height: 26px !important; }
+      .tag-badge { font-size: 10px !important; padding: 4px 7px !important; white-space: nowrap !important; }
+      .btn-wrapper { width: 100% !important; }
+      .btn-wrapper td { width: 100% !important; }
+      .btn-primary { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; padding: 14px 20px !important; }
+      .code-box { font-size: 24px !important; letter-spacing: 4px !important; padding: 10px 16px !important; }
     }
     @media (prefers-color-scheme: dark) {
       body, .email-bg { background-color: #0b0f19 !important; color: #f8fafc !important; }
@@ -40,14 +46,14 @@
             <td class="email-header" style="padding: 24px 32px 20px 32px; border-bottom: 1px solid #f1f5f9; background-color: #ffffff;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td align="left" valign="middle">
+                  <td align="left" valign="middle" style="padding-right: 8px;">
                     <a href="https://pos.hisabkhata.sumanonline.com" target="_blank" style="text-decoration: none; display: inline-block;">
-                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_light_mode-1ctlg5G6.png" alt="HisabKhata POS" class="logo-light" height="32" style="display: block; height: 32px; width: auto; max-width: 165px; border: 0;" />
-                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_dark_mode-CKXdlO9R.png" alt="HisabKhata POS" class="logo-dark" height="32" style="display: none; height: 32px; width: auto; max-width: 165px; border: 0;" />
+                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_light_mode-1ctlg5G6.png" alt="HisabKhata POS" class="logo-light logo-img" height="30" style="display: block; height: 30px; width: auto; max-width: 150px; border: 0;" />
+                      <img src="https://pos.hisabkhata.sumanonline.com/assets/logo_dark_mode-CKXdlO9R.png" alt="HisabKhata POS" class="logo-dark logo-img" height="30" style="display: none; height: 30px; width: auto; max-width: 150px; border: 0;" />
                     </a>
                   </td>
-                  <td align="right" valign="middle">
-                    <span class="tag-badge" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #4338ca; background-color: #eef2ff; padding: 5px 10px; border-radius: 6px; border: 1px solid #e0e7ff;">Email Verification</span>
+                  <td align="right" valign="middle" style="white-space: nowrap;">
+                    <span class="tag-badge" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #4338ca; background-color: #eef2ff; padding: 5px 10px; border-radius: 6px; border: 1px solid #e0e7ff; white-space: nowrap; display: inline-block;">Email Verify</span>
                   </td>
                 </tr>
               </table>
@@ -63,16 +69,10 @@
                 Welcome to HisabKhata POS, <strong>{{userName}}</strong>! Please confirm that <strong>{{userEmail}}</strong> belongs to you to activate your store and access your POS workspace.
               </p>
 
-              <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 0 26px 0; width: 100%;">
+              <table role="presentation" class="btn-wrapper" cellspacing="0" cellpadding="0" style="margin: 0 0 26px 0; width: 100%;">
                 <tr>
                   <td align="center">
-                    <table role="presentation" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td align="center" style="border-radius: 8px; background-color: #4f46e5;">
-                          <a href="{{verifyUrl}}" target="_blank" class="btn-primary" style="font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 14px 34px; display: inline-block; border-radius: 8px; letter-spacing: 0.2px;">Verify Email Address &rarr;</a>
-                        </td>
-                      </tr>
-                    </table>
+                    <a href="{{verifyUrl}}" target="_blank" class="btn-primary" style="font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 14px 34px; display: inline-block; border-radius: 8px; letter-spacing: 0.2px; background-color: #4f46e5;">Verify Email Address &rarr;</a>
                   </td>
                 </tr>
               </table>

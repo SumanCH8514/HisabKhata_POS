@@ -8,7 +8,7 @@ import {
   ArrowDownToLine, CalendarClock, Calendar, Folder, Info,
   Tag, ArrowLeftRight, Calculator, MoreVertical, Sparkles,
   Download, Upload, FileSpreadsheet, FileText, Award, Layers, CornerDownRight, FolderTree,
-  Camera, ScanLine, MapPin
+  Camera, ScanLine, MapPin, Image as ImageIcon
 } from 'lucide-react';
 import { getItems, createItem, updateItem, deleteItem, getCategories, createCategory,
   getSubCategories, createSubCategory, deleteSubCategory,
@@ -211,6 +211,8 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError]         = useState(null);
+  const photoInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const combinedUnits = useMemo(() => {
     const list = [...UNITS];
@@ -516,28 +518,33 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
     }
   };
 
-  const inp  = 'w-full px-3 py-[9px] text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-slate-800 placeholder-slate-400 bg-white transition-all';
+  const inp  = 'w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-800 placeholder-slate-400 bg-white transition-all';
   const lbl  = 'flex items-center gap-1 text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1';
   const dot  = <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs" onClick={e => e.target === e.currentTarget && onClose()}>
       <div 
-        className="w-full max-w-5xl xl:max-w-6xl max-h-[96vh] sm:max-h-[90vh] h-full sm:h-auto flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 animate-fade-in overflow-hidden"
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl xl:max-w-6xl flex flex-col bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 animate-fade-in overflow-hidden"
       >
 
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-100 flex-shrink-0 bg-slate-50/70">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3.5 border-b border-slate-100 flex-shrink-0 bg-slate-50/90 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
-              <Package size={18} strokeWidth={2} />
+              <Package size={17} strokeWidth={2.2} />
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-black text-slate-900 leading-tight">{isEdit ? 'Edit Item' : 'Add Item'}</h2>
               <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">Create Product Or Service Catalog Entry</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
-            <X size={18} />
+          <button 
+            type="button"
+            onClick={onClose} 
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+            title="Close modal"
+          >
+            <X size={17} strokeWidth={2.2} />
           </button>
         </div>
 
@@ -547,11 +554,98 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
             <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">{error}</div>
           )}
 
-          <div className="border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start gap-4 bg-slate-50/50">
+          <div className="border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4 bg-slate-50/50">
 
-            <div className="flex flex-col items-center gap-2 flex-shrink-0 mx-auto sm:mx-0">
+            {/* ── MOBILE VIEW ONLY (sm:hidden): Balanced Type Selector & Unified Photo Card ── */}
+            <div className="sm:hidden w-full space-y-2.5 pb-2.5 border-b border-slate-200/70">
+              {/* 1. Full-width Segmented Type Switcher */}
+              <div className="flex p-1 bg-slate-200/70 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setItemType('item')}
+                  className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    itemType === 'item' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Package size={14} strokeWidth={2.2} />
+                  <span>Physical Item</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setItemType('service');
+                    set('unit', 'Service');
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    itemType === 'service' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles size={14} strokeWidth={2.2} />
+                  <span>Service</span>
+                </button>
+              </div>
+
+              {/* 2. Unified Photo Card with Preview & Direct Actions */}
+              <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <div className="relative shrink-0">
+                  <div
+                    onClick={() => photoInputRef.current?.click()}
+                    className="w-[66px] h-[66px] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-emerald-500 transition-all"
+                    title="Click to view or upload photo"
+                  >
+                    {uploadingPhoto ? (
+                      <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    ) : form.image_url ? (
+                      <img src={form.image_url} alt="Item Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center text-slate-400">
+                        <Package size={18} strokeWidth={1.5} />
+                        <span className="text-[7.5px] font-bold mt-0.5 tracking-wider">NO PHOTO</span>
+                      </div>
+                    )}
+                  </div>
+                  {form.image_url && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        set('image_url', null);
+                      }}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer z-10"
+                      title="Remove image"
+                    >
+                      <X size={11} strokeWidth={3} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="w-full py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200/70 border border-emerald-200/80 rounded-lg text-emerald-800 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 active:scale-98 shadow-2xs"
+                  >
+                    <Camera size={14} className="text-emerald-600 shrink-0" strokeWidth={2.2} />
+                    <span>{form.image_url ? 'Retake with Camera' : 'Take Photo (Camera)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300/60 border border-slate-200 rounded-lg text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 active:scale-98"
+                  >
+                    <ImageIcon size={14} className="text-slate-500 shrink-0" strokeWidth={2.2} />
+                    <span>{form.image_url ? 'Change from Gallery' : 'Choose from Gallery'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ── DESKTOP VIEW ONLY (sm:flex): Compact Left Column ── */}
+            <div className="hidden sm:flex flex-col items-center gap-2 flex-shrink-0">
               <div 
-                onClick={() => document.getElementById('item-photo-input').click()}
+                onClick={() => photoInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                 onDragLeave={() => setIsDragOver(false)}
                 onDrop={(e) => {
@@ -562,7 +656,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                     handleUploadImageFile(file);
                   }
                 }}
-                className={`w-[88px] h-[80px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-0.5 bg-white cursor-pointer transition-all relative overflow-hidden group shadow-xs ${
+                className={`w-[88px] h-[80px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-0.5 bg-white cursor-pointer transition-all relative overflow-hidden group shadow-xs shrink-0 ${
                   isDragOver ? 'border-emerald-500 bg-emerald-50 scale-105 ring-2 ring-emerald-400' : 'border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/30'
                 }`}
                 title="Click to browse, drag & drop, or paste (Ctrl+V) image"
@@ -584,22 +678,21 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   </>
                 )}
               </div>
-              <input 
-                id="item-photo-input" 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUploadImageFile(file);
-                }} 
-              />
-              <div className="flex rounded-full overflow-hidden border border-slate-200 text-[10px] font-bold bg-white">
+              {form.image_url && (
+                <button
+                  type="button"
+                  onClick={() => set('image_url', null)}
+                  className="text-[10px] font-bold text-rose-500 hover:text-rose-700 hover:underline transition-colors cursor-pointer"
+                >
+                  Remove Photo
+                </button>
+              )}
+              <div className="flex rounded-full overflow-hidden border border-slate-200 text-[10px] font-bold bg-white shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setItemType('item')}
-                  className={`px-3 py-1 transition-colors ${
-                    itemType === 'item' ? 'bg-emerald-500 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  className={`px-3 py-1.5 transition-colors cursor-pointer ${
+                    itemType === 'item' ? 'bg-emerald-500 text-white font-black' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >Item</button>
                 <button
@@ -608,19 +701,46 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                     setItemType('service');
                     set('unit', 'Service');
                   }}
-                  className={`px-3 py-1 transition-colors ${
-                    itemType === 'service' ? 'bg-emerald-500 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  className={`px-3 py-1.5 transition-colors cursor-pointer ${
+                    itemType === 'service' ? 'bg-emerald-500 text-white font-black' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >Service</button>
               </div>
             </div>
+
+            {/* Hidden native inputs for file picker and camera */}
+            <input 
+              id="item-photo-input" 
+              ref={photoInputRef}
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadImageFile(file);
+                e.target.value = '';
+              }} 
+            />
+            <input 
+              id="item-camera-input" 
+              ref={cameraInputRef}
+              type="file" 
+              accept="image/*" 
+              capture="environment"
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadImageFile(file);
+                e.target.value = '';
+              }} 
+            />
 
             <div className="flex-1 grid grid-cols-12 gap-3 w-full">
               <div className="col-span-12 sm:col-span-6">
                 <label className={lbl}>{dot} ITEM NAME <span className="text-rose-500">*</span></label>
                 <input id="item-name-input" className={inp} placeholder="e.g. Wireless Mouse" value={form.name} onChange={e => set('name', e.target.value)} />
               </div>
-              <div className="col-span-6 sm:col-span-3">
+              <div className="col-span-12 sm:col-span-6 md:col-span-3">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> CATEGORY
@@ -659,7 +779,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   searchable={true}
                 />
               </div>
-              <div className="col-span-6 sm:col-span-3">
+              <div className="col-span-12 sm:col-span-6 md:col-span-3">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" /> SUB-CATEGORY
@@ -706,7 +826,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                 />
               </div>
 
-              <div className="col-span-6 sm:col-span-3">
+              <div className="col-span-12 sm:col-span-6 md:col-span-3">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" /> BRAND
@@ -757,7 +877,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                 <label className={lbl}><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" /> HSN CODE</label>
                 <input className={inp} placeholder="HSN/SAC" value={form.hsn_code || ''} onChange={e => set('hsn_code', e.target.value)} />
               </div>
-              <div className="col-span-6 sm:col-span-3">
+              <div className="col-span-12 sm:col-span-6 md:col-span-3">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> ITEM CODE / BARCODE
@@ -783,7 +903,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                     type="button" 
                     onClick={() => setShowBarcodeScanner(true)}
                     title="Scan barcode from product"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 transition-colors p-1 rounded-md hover:bg-slate-100 cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 transition-colors p-1.5 rounded-md hover:bg-slate-100 cursor-pointer"
                   >
                     <ScanLine size={16} strokeWidth={2} />
                   </button>
@@ -807,9 +927,9 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   </button>
                 </div>
                 <textarea
-                  className="w-full px-3 py-2.5 text-xs sm:text-sm font-medium border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none text-slate-800 placeholder-slate-400 bg-white min-h-[76px] sm:min-h-[88px] resize-y transition-all leading-relaxed"
+                  className="w-full px-3 py-2.5 text-xs sm:text-sm font-medium border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none text-slate-800 placeholder-slate-400 bg-white min-h-[72px] sm:min-h-[88px] resize-y transition-all leading-relaxed"
                   placeholder="Enter detailed product description, specifications, features, key attributes..."
-                  rows={3}
+                  rows={2}
                   value={form.description || ''}
                   onChange={e => set('description', e.target.value)}
                 />
@@ -817,20 +937,20 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
             </div>
           </div>
 
-          <div className="flex gap-0 border border-slate-200 rounded-full w-fit overflow-hidden bg-white">
+          <div className="flex gap-0 border border-slate-200 rounded-xl sm:rounded-full w-full sm:w-fit overflow-hidden bg-slate-100 p-0.5">
             <button
               type="button"
               onClick={() => setActiveTab('pricing')}
-              className={`px-5 py-1.5 text-xs font-bold transition-colors ${
-                activeTab === 'pricing' ? 'bg-emerald-500 text-white' : 'text-slate-600 hover:bg-slate-50'
+              className={`flex-1 sm:flex-initial text-center px-5 py-1.5 text-xs font-bold rounded-lg sm:rounded-full transition-all cursor-pointer ${
+                activeTab === 'pricing' ? 'bg-emerald-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >Pricing</button>
             {itemType !== 'service' && (
               <button
                 type="button"
                 onClick={() => setActiveTab('stock')}
-                className={`px-5 py-1.5 text-xs font-bold transition-colors ${
-                  activeTab === 'stock' ? 'bg-emerald-500 text-white' : 'text-slate-600 hover:bg-slate-50'
+                className={`flex-1 sm:flex-initial text-center px-5 py-1.5 text-xs font-bold rounded-lg sm:rounded-full transition-all cursor-pointer ${
+                  activeTab === 'stock' ? 'bg-emerald-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >Stock</button>
             )}
@@ -1101,38 +1221,64 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
 
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 px-4 py-3 sm:px-6 sm:py-3.5 border-t border-slate-100 bg-white flex-shrink-0">
+        <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3.5 py-2.5 sm:px-6 sm:py-3.5 flex items-center justify-between sm:justify-end gap-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] sm:shadow-none flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 sm:px-5 py-2 sm:py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 active:scale-98 rounded-xl transition-all cursor-pointer text-center border border-slate-200 sm:border-transparent sm:hover:border-slate-200"
+            className="hidden sm:inline-flex px-4 sm:px-5 py-2 sm:py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 active:scale-98 rounded-xl transition-all cursor-pointer text-center border border-transparent hover:border-slate-200"
           >
             Cancel
           </button>
-          {!isEdit && (
-            <button
-              type="button"
-              onClick={() => doSave(true)}
-              disabled={savingNew || saving}
-              className="px-4 sm:px-5 py-2 sm:py-2.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 active:scale-98 border border-slate-200 rounded-xl transition-all cursor-pointer text-center shadow-2xs whitespace-nowrap disabled:opacity-50"
-            >
-              {savingNew ? 'Saving…' : 'Save & Add New'}
-            </button>
+          {isEdit ? (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="sm:hidden flex-1 py-2.5 px-4 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-98 rounded-xl transition-all cursor-pointer text-center"
+              >
+                Cancel
+              </button>
+              <button
+                id="item-save-btn"
+                type="button"
+                onClick={() => doSave(false)}
+                disabled={saving || savingNew}
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+              >
+                {saving ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} strokeWidth={3} />
+                )}
+                <span>Update Item</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => doSave(true)}
+                disabled={savingNew || saving}
+                className="flex-1 sm:flex-initial px-3 sm:px-5 py-2.5 sm:py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-98 border border-slate-200 rounded-xl transition-all cursor-pointer text-center shadow-2xs whitespace-nowrap disabled:opacity-50"
+              >
+                {savingNew ? 'Saving…' : 'Save & Add New'}
+              </button>
+              <button
+                id="item-save-btn"
+                type="button"
+                onClick={() => doSave(false)}
+                disabled={saving || savingNew}
+                className="flex-1 sm:flex-initial px-4 sm:px-6 py-2.5 sm:py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+              >
+                {saving ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} strokeWidth={3} />
+                )}
+                <span>Save Item</span>
+              </button>
+            </div>
           )}
-          <button
-            id="item-save-btn"
-            type="button"
-            onClick={() => doSave(false)}
-            disabled={saving || savingNew}
-            className="px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
-          >
-            {saving ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : (
-              <Check size={14} strokeWidth={3} />
-            )}
-            <span>{isEdit ? 'Update Item' : 'Save Item'}</span>
-          </button>
         </div>
 
       </div>
@@ -2662,63 +2808,68 @@ export default function Inventory() {
           </div>
 
           {/* Right Panel - Item Details or Empty State */}
-          <div className="flex-1 w-full bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-sm min-h-[580px]">
+          <div className="flex-1 w-full bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm min-h-[580px]">
             {selectedItem ? (
               <div className="w-full flex flex-col text-left space-y-5">
                 
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-gray-150">
-                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 sm:gap-4 pb-4 sm:pb-5 border-b border-gray-150">
+                  <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full sm:flex-1">
                     {selectedItem.image_url ? (
-                      <img src={selectedItem.image_url} alt="" className="w-14 h-14 rounded-2xl object-cover border border-gray-200 shadow-xs flex-shrink-0" />
+                      <img 
+                        src={selectedItem.image_url} 
+                        alt={selectedItem.name} 
+                        className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border border-slate-200/85 shadow-xs shrink-0 bg-white" 
+                      />
                     ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-[#e6fbf7] border border-[#00c795]/20 flex items-center justify-center text-[#00c795] flex-shrink-0 shadow-xs">
-                        <Package size={26} strokeWidth={1.8} />
+                      <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-xs">
+                        <Package size={28} strokeWidth={1.8} />
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-base sm:text-lg font-black text-gray-900 leading-snug break-words">
+                      <h2 className="text-sm sm:text-base lg:text-lg font-black text-slate-900 leading-snug break-words">
                         {selectedItem.name}
                       </h2>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs font-semibold">
-                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-mono">
-                          Unit: {selectedItem.unit}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
+                        <span className={`px-2 py-0.5 rounded-lg border text-[10.5px] font-bold inline-flex items-center gap-1 shrink-0 ${
+                          selectedItem.current_stock <= selectedItem.low_stock_alert
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${selectedItem.current_stock <= selectedItem.low_stock_alert ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                          {selectedItem.current_stock <= selectedItem.low_stock_alert ? 'Low Stock Warning' : 'In Stock'}
                         </span>
                         {selectedItem.brand && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-bold">
+                          <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-[10.5px] font-bold shrink-0">
                             Brand: {selectedItem.brand}
                           </span>
                         )}
+                        <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 text-[10.5px] font-mono shrink-0">
+                          Unit: {selectedItem.unit}
+                        </span>
                         {selectedItem.category_id && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-semibold">
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 text-[10.5px] font-semibold">
                             {categories.find(c => c.id === selectedItem.category_id)?.name || 'Categorized'}
                             {selectedItem.sub_category ? ` › ${selectedItem.sub_category}` : ''}
                           </span>
                         )}
-                        <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold inline-flex items-center gap-1 ${
-                          selectedItem.current_stock <= selectedItem.low_stock_alert
-                            ? 'bg-red-50 text-red-700 border-red-200'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${selectedItem.current_stock <= selectedItem.low_stock_alert ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                          {selectedItem.current_stock <= selectedItem.low_stock_alert ? 'Low Stock Warning' : 'In Stock'}
-                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                  <div className="flex items-center gap-2 w-full sm:w-auto pt-1 sm:pt-0 shrink-0">
                     <button 
                       onClick={() => setModal(selectedItem)}
-                      className="px-3.5 py-2 border border-gray-200 hover:border-gray-300 rounded-xl bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="flex-1 sm:flex-initial px-4 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl text-xs font-black shadow-xs shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
                     >
-                      <Edit2 size={13} className="text-gray-500" />
+                      <Edit2 size={13} strokeWidth={2.4} />
                       <span>Edit</span>
                     </button>
                     <button 
                       onClick={() => handleDelete(selectedItem.id)}
-                      className="px-3.5 py-2 border border-red-200 hover:border-red-300 rounded-xl bg-red-50/60 hover:bg-red-100 text-red-600 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="flex-1 sm:flex-initial px-4 py-2.5 sm:py-2 border border-rose-200 hover:border-rose-300 rounded-xl bg-rose-50/70 hover:bg-rose-100 active:scale-98 text-rose-600 text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                      title="Delete item"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={13} strokeWidth={2.2} />
                       <span>Delete</span>
                     </button>
                   </div>

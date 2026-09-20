@@ -5,7 +5,8 @@ import {
   Users, Plus, Search, Edit2, Trash2, X,
   RefreshCw, CreditCard, ArrowUpRight, ArrowDownLeft,
   Phone, Mail, Building2, ChevronRight,
-  FileText, Calendar, Receipt, Download, Printer, CheckCircle2, AlertCircle, ArrowRight
+  FileText, Calendar, Receipt, Download, Printer, CheckCircle2, AlertCircle, ArrowRight,
+  MoreVertical
 } from 'lucide-react';
 import {
   getParties, createParty, updateParty, deleteParty,
@@ -470,38 +471,36 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
 
   return typeof document !== 'undefined' && createPortal(
     <div className="fixed inset-0 bg-slate-900/70 sm:bg-slate-900/60 sm:backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white sm:rounded-2xl rounded-t-[1.25rem] shadow-2xl w-full max-w-3xl h-[95dvh] sm:h-auto sm:max-h-[92vh] flex flex-col sm:border border-slate-200 animate-fade-in text-slate-800 overflow-hidden">
+      <div className="bg-white dark:bg-[#0f172a] sm:rounded-2xl rounded-t-[1.25rem] shadow-2xl w-full max-w-3xl h-[95dvh] sm:h-auto sm:max-h-[92vh] flex flex-col sm:border border-slate-200 dark:border-slate-800 animate-fade-in text-slate-800 dark:text-slate-100 overflow-hidden">
         
-        {/* ── Mobile drag handle ── */}
         <div className="sm:hidden flex justify-center pt-2 pb-1 shrink-0">
-          <div className="w-10 h-1 rounded-full bg-slate-300" />
+          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
 
-        {/* ── Header ── */}
-        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-11 h-11 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center font-black text-base shrink-0 shadow-sm ${
-              isCust ? 'bg-gradient-to-br from-emerald-400/20 to-emerald-500/10 text-emerald-700 border border-emerald-200' : 'bg-gradient-to-br from-amber-400/20 to-amber-500/10 text-amber-700 border border-amber-200'
+              isCust ? 'bg-gradient-to-br from-emerald-400/20 to-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60' : 'bg-gradient-to-br from-amber-400/20 to-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60'
             }`}>
               {party.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <h2 className="text-[15px] sm:text-base font-extrabold text-slate-900 truncate leading-tight">{party.name}</h2>
+              <h2 className="text-[15px] sm:text-base font-extrabold text-slate-900 dark:text-white truncate leading-tight">{party.name}</h2>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase tracking-wide ${
-                  isCust ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  isCust ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50' : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50'
                 }`}>
                   {party.type}
                 </span>
                 {party.phone && (
-                  <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <Phone size={11} className="text-slate-400" />
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <Phone size={11} className="text-slate-400 dark:text-slate-500" />
                     {party.phone}
                   </span>
                 )}
               </div>
               {party.gst_number && (
-                <span className="font-mono text-[10px] bg-slate-200/60 px-1 rounded text-slate-700 mt-0.5 inline-block">
+                <span className="font-mono text-[10px] bg-slate-200/60 dark:bg-slate-800 px-1 rounded text-slate-700 dark:text-slate-300 mt-0.5 inline-block">
                   GSTIN: {party.gst_number}
                 </span>
               )}
@@ -511,37 +510,36 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => onEditParty(party)}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               title="Edit Party Details"
             >
               <Edit2 size={16} />
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* ── Summary Cards ── */}
-        <div className="px-3 py-3 sm:p-4 bg-gradient-to-b from-slate-50/80 to-white border-b border-slate-100 shrink-0">
+        <div className="px-3 py-3 sm:p-4 bg-gradient-to-b from-slate-50/80 to-white dark:from-[#0f172a] dark:to-[#0f172a] border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200/80 shadow-sm">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 shadow-sm">
               <span className="text-[9px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Billed</span>
-              <p className="text-[13px] sm:text-base font-black text-slate-800 number-cell mt-1 leading-tight">{fmtCurrency(totalInvoiced)}</p>
+              <p className="text-[13px] sm:text-base font-black text-slate-800 dark:text-white number-cell mt-1 leading-tight">{fmtCurrency(totalInvoiced)}</p>
             </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/70 shadow-sm">
-              <span className="text-[9px] sm:text-[11px] font-bold text-emerald-600 uppercase tracking-wider block">Settled</span>
-              <p className="text-[13px] sm:text-base font-black text-emerald-700 number-cell mt-1 leading-tight">{fmtCurrency(totalPaid)}</p>
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50 shadow-sm">
+              <span className="text-[9px] sm:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Settled</span>
+              <p className="text-[13px] sm:text-base font-black text-emerald-700 dark:text-emerald-300 number-cell mt-1 leading-tight">{fmtCurrency(totalPaid)}</p>
             </div>
             <div className={`p-2.5 sm:p-3 rounded-xl border shadow-sm ${
-              balanceDue > 0 ? (isCust ? 'bg-amber-50/70 border-amber-200/70' : 'bg-rose-50/70 border-rose-200/70') : 'bg-white border-slate-200/80'
+              balanceDue > 0 ? (isCust ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-800/50' : 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200/70 dark:border-rose-800/50') : 'bg-white dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/60'
             }`}>
-              <span className="text-[9px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Balance</span>
+              <span className="text-[9px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Balance</span>
               <p className={`text-[13px] sm:text-base font-black number-cell mt-1 leading-tight ${
-                balanceDue > 0 ? (isCust ? 'text-amber-700' : 'text-rose-700') : 'text-slate-500'
+                balanceDue > 0 ? (isCust ? 'text-amber-700 dark:text-amber-400' : 'text-rose-700 dark:text-rose-400') : 'text-slate-500 dark:text-slate-400'
               }`}>
                 {fmtCurrency(balanceDue)}
               </p>
@@ -549,10 +547,9 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
           </div>
         </div>
 
-        {/* ── Filter Tabs + Actions ── */}
-        <div className="px-3 sm:px-4 py-2.5 bg-white border-b border-slate-100 shrink-0">
+        <div className="px-3 sm:px-4 py-2.5 bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold shrink-0">
+            <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/70 p-0.5 text-xs font-semibold shrink-0">
               {[
                 { key: 'ALL', label: `All (${allEntries.length})` },
                 { key: 'INVOICES', label: 'Invoices' },
@@ -562,7 +559,7 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
                   key={tab.key}
                   onClick={() => setFilterType(tab.key)}
                   className={`px-3 py-1.5 rounded-[10px] text-[11px] transition-all cursor-pointer whitespace-nowrap ${
-                    filterType === tab.key ? 'bg-white text-slate-900 font-bold shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                    filterType === tab.key ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-bold shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
                   {tab.label}
@@ -576,7 +573,7 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
                   href={`https://api.whatsapp.com/send?phone=${formatWhatsAppPhone(party.phone)}&text=${encodeURIComponent(shareMsg)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 sm:px-2.5 sm:py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl sm:rounded-lg text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                  className="p-2 sm:px-2.5 sm:py-1 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 rounded-xl sm:rounded-lg text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
                 >
                   <WhatsAppIcon size={14} />
                   <span className="hidden sm:inline">WhatsApp</span>
@@ -594,8 +591,7 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
           </div>
         </div>
 
-        {/* ── Ledger Entries ── */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-50/30">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-50/30 dark:bg-[#080d1a]">
           {loading ? (
             <div className="py-16 text-center">
               <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -607,30 +603,29 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
               return (
                 <div
                   key={entry.id}
-                  className="p-3 sm:p-3.5 rounded-xl border border-slate-200/80 bg-white hover:border-slate-300 transition-all shadow-sm"
+                  className="p-3 sm:p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800/90 bg-white dark:bg-[#0f172a] hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm"
                 >
-                  {/* Top row: icon + ref + amount */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
                         isInv
-                          ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50'
                           : entry.type === 'PAYMENT_IN'
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-rose-50 text-rose-600 border border-rose-100'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50'
                       }`}>
                         {isInv ? <FileText size={16} /> : entry.type === 'PAYMENT_IN' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                       </div>
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[13px] sm:text-xs font-black text-slate-900">{entry.ref}</span>
+                          <span className="text-[13px] sm:text-xs font-black text-slate-900 dark:text-white">{entry.ref}</span>
                           <span className={`text-[9px] sm:text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md uppercase ${
                             isInv
-                              ? 'bg-slate-100 text-slate-600'
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                               : entry.type === 'PAYMENT_IN'
-                                ? 'bg-emerald-100/70 text-emerald-700'
-                                : 'bg-rose-100/70 text-rose-700'
+                                ? 'bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-rose-100/70 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
                           }`}>
                             {isInv ? entry.type : (entry.type === 'PAYMENT_IN' ? 'Received' : 'Paid')}
                           </span>
@@ -642,10 +637,10 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
                       <div className="flex items-center justify-end gap-1.5">
                         <span className={`text-[14px] sm:text-sm font-black number-cell block leading-tight ${
                           isInv
-                            ? 'text-slate-900'
+                            ? 'text-slate-900 dark:text-white'
                             : entry.type === 'PAYMENT_IN'
-                              ? 'text-emerald-700'
-                              : 'text-rose-700'
+                              ? 'text-emerald-700 dark:text-emerald-400'
+                              : 'text-rose-700 dark:text-rose-400'
                         }`}>
                           {isInv ? '' : (entry.type === 'PAYMENT_IN' ? '- ' : '+ ')}
                           {fmtCurrency(entry.amount)}
@@ -653,7 +648,7 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
                         <button
                           type="button"
                           onClick={() => handleDeleteEntry(entry)}
-                          className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="p-1 text-slate-300 dark:text-slate-600 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                           title="Delete entry"
                         >
                           <Trash2 size={13} />
@@ -661,11 +656,11 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
                       </div>
                       {isInv && (
                         entry.balance > 0 ? (
-                          <span className="text-[10px] font-bold text-amber-600 block mt-0.5">
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
                             Due: {fmtCurrency(entry.balance)}
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block mt-0.5">
                             Paid
                           </span>
                         )
@@ -673,24 +668,23 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
                     </div>
                   </div>
 
-                  {/* Bottom meta row */}
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100/80 text-[10px] sm:text-[10px] text-slate-400 font-medium flex-wrap">
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100/80 dark:border-slate-800 text-[10px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-medium flex-wrap">
                     <span className="flex items-center gap-1">
                       <Calendar size={10} />
                       {entry.date ? new Date(entry.date).toLocaleDateString('en-GB') : '—'}
                     </span>
                     {entry.payment_mode && (
-                      <span className="bg-slate-100 px-1.5 py-0.5 rounded-md text-slate-600 font-semibold">
+                      <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md text-slate-600 dark:text-slate-300 font-semibold">
                         {isInv && entry.balance <= 0 && typeof entry.payment_mode === 'string' && entry.payment_mode.includes('Due:')
                           ? 'Settled'
                           : entry.payment_mode}
                       </span>
                     )}
                     {isInv && entry.paid > 0 && (
-                      <span className="text-emerald-600 font-semibold">Paid: {fmtCurrency(entry.paid)}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Paid: {fmtCurrency(entry.paid)}</span>
                     )}
                     {entry.notes && (
-                      <span className="text-slate-500 truncate max-w-[180px] sm:max-w-[150px]">{entry.notes}</span>
+                      <span className="text-slate-500 dark:text-slate-400 truncate max-w-[180px] sm:max-w-[150px]">{entry.notes}</span>
                     )}
                   </div>
                 </div>
@@ -698,24 +692,284 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
             })
           ) : (
             <div className="py-16 text-center text-xs text-slate-400">
-              <Receipt size={28} className="mx-auto text-slate-300 mb-2" />
-              <p className="font-bold text-slate-700 text-sm">No ledger activity found</p>
+              <Receipt size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">No ledger activity found</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Create invoices or record payments for this party.</p>
             </div>
           )}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="px-4 py-3 sm:py-3 bg-white border-t border-slate-200/80 flex items-center justify-between shrink-0 gap-2">
+        <div className="px-4 py-3 sm:py-3 bg-white dark:bg-[#0f172a] border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between shrink-0 gap-2">
           <span className="text-[11px] font-medium text-slate-400">{filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'}</span>
           <button
             onClick={onClose}
-            className="px-4 py-2 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl sm:rounded-lg text-xs transition-colors cursor-pointer active:scale-95"
+            className="px-4 py-2 sm:py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl sm:rounded-lg text-xs transition-colors cursor-pointer active:scale-95"
           >
             Close
           </button>
         </div>
 
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function PartyMobileActionSheet({
+  party,
+  onClose,
+  onOpenLedger,
+  onOpenPayment,
+  onEdit,
+  onDelete
+}) {
+  if (!party) return null;
+
+  const isCust = party.type === 'CUSTOMER';
+  const hasDue = (party.current_balance || 0) > 0;
+  const bizName = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('cached_company'))?.name || 'Our Store';
+    } catch {
+      return 'Our Store';
+    }
+  })();
+  const shareMsg = `\u{1F514} *Payment Reminder \u2014 HisabKhata POS*\n\nDear *${party.name}*,\n\nYour current outstanding balance with *${bizName}* is:\n\n\u{1F4B0} *Outstanding Amount: ${fmtCurrency(party.current_balance || 0)}*\n\nKindly clear the outstanding amount at your earliest convenience.\n\nThank you for your continued business with us! \u{1F64F}\n\n\u2014 *${bizName}*`;
+
+  return typeof document !== 'undefined' && createPortal(
+    <div
+      className="fixed inset-0 bg-slate-900/60 dark:bg-black/75 backdrop-blur-xs z-[9999] flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md border-t sm:border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[90vh] flex flex-col animate-slide-up">
+        <div className="pt-3 pb-1 flex justify-center sm:hidden">
+          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full" />
+        </div>
+
+        <div className="px-5 pt-3 pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-white dark:bg-[#0f172a]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+              isCust
+                ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-900/50'
+                : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/50'
+            }`}>
+              {(party.name || 'P').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                  {party.name}
+                </h3>
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                  isCust
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900/60'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/60'
+                }`}>
+                  {party.type}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
+                {party.phone ? party.phone : party.email ? party.email : 'No phone specified'}
+                {party.address ? ` • ${party.address}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+            title="Close"
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div className="p-3.5 bg-slate-50/70 dark:bg-[#0b1120] border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                {isCust ? 'Khata Receivable' : 'Khata Payable'}
+              </span>
+              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mt-0.5 block truncate">
+                {hasDue ? (isCust ? 'Pending collection from customer' : 'Pending payment to vendor') : 'Zero balance • All dues settled'}
+              </span>
+            </div>
+            <div className="text-right shrink-0">
+              <span className={`text-base font-black font-mono block ${
+                hasDue
+                  ? (isCust ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                  : 'text-slate-600 dark:text-slate-400'
+              }`}>
+                {fmtCurrency(party.current_balance)}
+              </span>
+              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                hasDue
+                  ? (isCust ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300')
+                  : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+              }`}>
+                {hasDue ? 'PENDING DUE' : 'CLEARED'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3.5 space-y-2 overflow-y-auto max-h-[50vh]">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onOpenLedger(party);
+            }}
+            className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-800 bg-white dark:bg-slate-800/40 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 text-left transition-all cursor-pointer group shadow-2xs"
+          >
+            <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <FileText size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Statement & Ledger</p>
+              <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5">View complete debit / credit transactions and export PDF/Excel</p>
+            </div>
+            <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-indigo-500 transition-colors" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onOpenPayment(party);
+            }}
+            className={`w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition-all cursor-pointer group shadow-2xs ${
+              isCust
+                ? 'border-emerald-200/80 dark:border-emerald-900/50 hover:border-emerald-300 dark:hover:border-emerald-800 bg-white dark:bg-slate-800/40 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
+                : 'border-rose-200/80 dark:border-rose-900/50 hover:border-rose-300 dark:hover:border-rose-800 bg-white dark:bg-slate-800/40 hover:bg-rose-50/50 dark:hover:bg-rose-950/30'
+            }`}
+          >
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+              isCust
+                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                : 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
+            }`}>
+              <CreditCard size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-xs font-bold ${
+                isCust ? 'text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400' : 'text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400'
+              }`}>
+                {isCust ? 'Record Payment In (Receive)' : 'Record Payment Out (Pay)'}
+              </p>
+              <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5">
+                {hasDue
+                  ? `Settle outstanding ${fmtCurrency(party.current_balance)} balance`
+                  : 'Record new payment voucher against Khata'}
+              </p>
+            </div>
+            <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
+          </button>
+
+          {party.phone && (
+            <a
+              href={`https://api.whatsapp.com/send?phone=${formatWhatsAppPhone(party.phone)}&text=${encodeURIComponent(shareMsg)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800 bg-white dark:bg-slate-800/40 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30 text-left transition-all cursor-pointer group shadow-2xs"
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                <WhatsAppIcon size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">Share on WhatsApp</p>
+                <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5">
+                  Send current balance & payment reminder directly to {party.phone}
+                </p>
+              </div>
+              <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-emerald-500 transition-colors" />
+            </a>
+          )}
+
+          {party.phone && (
+            <a
+              href={`tel:${party.phone}`}
+              onClick={onClose}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 bg-white dark:bg-slate-800/40 hover:bg-blue-50/40 dark:hover:bg-blue-950/30 text-left transition-all cursor-pointer group shadow-2xs"
+            >
+              <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Phone size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Call {party.name}</p>
+                <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5 font-mono">{party.phone}</p>
+              </div>
+              <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-blue-500 transition-colors" />
+            </a>
+          )}
+
+          {party.email && (
+            <a
+              href={`mailto:${party.email}`}
+              onClick={onClose}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 bg-white dark:bg-slate-800/40 hover:bg-purple-50/40 dark:hover:bg-purple-950/30 text-left transition-all cursor-pointer group shadow-2xs"
+            >
+              <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Mail size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400">Send Email</p>
+                <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5">{party.email}</p>
+              </div>
+              <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0 group-hover:text-purple-500 transition-colors" />
+            </a>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onEdit(party);
+            }}
+            className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-all cursor-pointer group shadow-2xs"
+          >
+            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Edit2 size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-slate-700 dark:group-hover:text-slate-200">Edit Party Details</p>
+              <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5">Update contact info, GSTIN, address, or party type</p>
+            </div>
+            <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
+          </button>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onDelete(party.id);
+              }}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-rose-200/80 dark:border-rose-950/60 hover:border-rose-300 dark:hover:border-rose-900 bg-rose-50/40 dark:bg-rose-950/20 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left transition-all cursor-pointer group shadow-2xs"
+            >
+              <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Trash2 size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-400">Delete Party</p>
+                <p className="text-[10.5px] text-rose-600/80 dark:text-rose-400/80 mt-0.5">Remove party and clear outstanding Khata balance</p>
+              </div>
+              <ChevronRight size={14} className="text-rose-300 dark:text-rose-800 shrink-0 group-hover:text-rose-500 transition-colors" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-[#0b1120]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-98 transition-all cursor-pointer shadow-xs"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>,
     document.body
@@ -730,6 +984,7 @@ export default function Parties() {
   const [modal, setModal] = useState(null);
   const [payModal, setPayModal] = useState(null);
   const [selectedPartyLedger, setSelectedPartyLedger] = useState(null);
+  const [mobileActionParty, setMobileActionParty] = useState(null);
   const [searchParams] = useSearchParams();
 
   const load = useCallback(async () => {
@@ -874,11 +1129,21 @@ export default function Parties() {
                         </span>
                         <span className="font-bold text-slate-900 text-xs truncate">{p.name}</span>
                       </div>
-                      <span className={`text-xs font-black number-cell shrink-0 ${
-                        hasDue ? (isCust ? 'text-emerald-700' : 'text-rose-700') : 'text-slate-400'
-                      }`}>
-                        {fmtCurrency(p.current_balance)}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`text-xs font-black number-cell ${
+                          hasDue ? (isCust ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400') : 'text-slate-400 dark:text-slate-500'
+                        }`}>
+                          {fmtCurrency(p.current_balance)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMobileActionParty(p)}
+                          className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-md cursor-pointer transition-colors"
+                          title="More Options"
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/50">
@@ -1060,6 +1325,17 @@ export default function Parties() {
         />
       )}
       {modal && <PartyModal party={modal === 'new' ? null : modal} onClose={() => setModal(null)} onSave={() => { setModal(null); load(); }} />}
+
+      {mobileActionParty && (
+        <PartyMobileActionSheet
+          party={mobileActionParty}
+          onClose={() => setMobileActionParty(null)}
+          onOpenLedger={(p) => setSelectedPartyLedger(p)}
+          onOpenPayment={(p) => setPayModal(p)}
+          onEdit={(p) => setModal(p)}
+          onDelete={(id) => handleDelete(id)}
+        />
+      )}
 
     </div>
   );

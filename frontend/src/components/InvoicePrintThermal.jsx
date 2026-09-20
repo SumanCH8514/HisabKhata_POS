@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Printer, ArrowLeft, Download, MapPin, Phone, Globe, FileText, QrCode, Bluetooth } from 'lucide-react';
-import { getInvoice, getCompany, getItems, getImageBase64, fmtCurrency, getPosSettings, formatAppDate } from '../api/client.js';
+import { getInvoice, getCompany, getItems, getImageBase64, fmtCurrency, getPosSettings, formatAppDate, isBusinessGstRegistered } from '../api/client.js';
 import { getConnectedPrinter, connectBluetoothPrinter, autoReconnectBluetoothPrinter, printEscPosInvoice, isBluetoothSupported } from '../utils/bluetoothPrinter.js';
 
 const WhatsAppIcon = ({ size = 14 }) => (
@@ -182,6 +182,11 @@ export default function InvoicePrintThermal() {
     }
   };
 
+  const isRegistered = isBusinessGstRegistered(company);
+  const effectiveTitle = !isRegistered
+    ? (cfg.invoiceTitle && cfg.invoiceTitle !== 'TAX INVOICE' ? cfg.invoiceTitle : 'BILL OF SUPPLY')
+    : (cfg.invoiceTitle || 'TAX INVOICE');
+  const displaySubtotal = isRegistered ? Number(invoice.subtotal) : Number(invoice.total_amount || invoice.subtotal);
   const effectiveLogo = logoBase64 || company?.logo_url;
   const upiId = cfg.upiId || company?.upi_id;
   const bankName = cfg.bankName || company?.bank_name;
@@ -325,7 +330,7 @@ export default function InvoicePrintThermal() {
             </table>
           )}
 
-          {cfg.showGstin !== false && (company?.gst_number || company?.trade_licence) && (
+          {cfg.showGstin !== false && isRegistered && (company?.gst_number || company?.trade_licence) && (
             <table className="border-collapse text-[10.5px] font-bold text-slate-950 mx-auto my-0.5">
               <tbody>
                 <tr>
@@ -346,7 +351,7 @@ export default function InvoicePrintThermal() {
                 <tbody>
                   <tr>
                     <td className="px-3 py-0.5 text-center font-black text-[11px] uppercase tracking-wider text-slate-950 whitespace-nowrap align-middle">
-                      {cfg.invoiceTitle || 'TAX INVOICE'}
+                      {effectiveTitle}
                     </td>
                   </tr>
                 </tbody>
@@ -432,12 +437,14 @@ export default function InvoicePrintThermal() {
           <tbody>
             <tr>
               <td className="py-0.5 text-left">Subtotal:</td>
-              <td className="py-0.5 text-right">{fmtCurrency(invoice.subtotal)}</td>
+              <td className="py-0.5 text-right">{fmtCurrency(displaySubtotal)}</td>
             </tr>
-            <tr>
-              <td className="py-0.5 text-left">GST Tax:</td>
-              <td className="py-0.5 text-right">{fmtCurrency(invoice.tax_amount)}</td>
-            </tr>
+            {isRegistered && (
+              <tr>
+                <td className="py-0.5 text-left">GST Tax:</td>
+                <td className="py-0.5 text-right">{fmtCurrency(invoice.tax_amount)}</td>
+              </tr>
+            )}
             <tr className="border-t border-slate-400 font-black text-sm text-slate-950">
               <td className="pt-1.5 pb-0.5 text-left">TOTAL:</td>
               <td className="pt-1.5 pb-0.5 text-right">{fmtCurrency(invoice.total_amount)}</td>

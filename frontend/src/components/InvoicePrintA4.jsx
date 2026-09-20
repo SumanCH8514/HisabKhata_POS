@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Printer, ArrowLeft, Download, MapPin, Phone, Globe, FileText, QrCode, Bluetooth } from 'lucide-react';
-import { getInvoice, getCompany, getItems, getImageBase64, fmtCurrency, getPosSettings, formatAppDate } from '../api/client.js';
+import { getInvoice, getCompany, getItems, getImageBase64, fmtCurrency, getPosSettings, formatAppDate, isBusinessGstRegistered } from '../api/client.js';
 import { getConnectedPrinter, connectBluetoothPrinter, autoReconnectBluetoothPrinter, printEscPosInvoice, isBluetoothSupported } from '../utils/bluetoothPrinter.js';
 
 const WhatsAppIcon = ({ size = 14 }) => (
@@ -163,6 +163,12 @@ export default function InvoicePrintA4() {
     );
   }
 
+  const isRegistered = isBusinessGstRegistered(company);
+  const effectiveTitle = !isRegistered
+    ? (cfg.invoiceTitle && cfg.invoiceTitle !== 'TAX INVOICE' ? cfg.invoiceTitle : 'BILL OF SUPPLY')
+    : (cfg.invoiceTitle || 'TAX INVOICE');
+  const displaySubtotal = isRegistered ? Number(invoice.subtotal) : Number(invoice.total_amount || invoice.subtotal);
+  const displayTax = isRegistered ? Number(invoice.tax_amount || 0) : 0;
   const bankName = cfg.bankName || company?.bank_name;
   const bankAcc = cfg.bankAccountNo || company?.account_number;
   const bankIfsc = cfg.bankIfsc || company?.ifsc_code;
@@ -311,7 +317,7 @@ export default function InvoicePrintA4() {
               </tbody>
             </table>
 
-            {cfg.showGstin !== false && (company?.gst_number || company?.trade_licence) && (
+            {cfg.showGstin !== false && isRegistered && (company?.gst_number || company?.trade_licence) && (
               <table className="border-collapse text-xs font-bold text-slate-800 pt-0.5">
                 <tbody>
                   <tr>
@@ -331,7 +337,7 @@ export default function InvoicePrintA4() {
             {cfg.invoiceTitle !== 'NAN' && cfg.invoiceTitle !== 'NONE' && (
               <div className="flex justify-end mb-2">
                 <span className="bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-md leading-normal inline-block text-center">
-                  {cfg.invoiceTitle || 'TAX INVOICE'}
+                  {effectiveTitle}
                 </span>
               </div>
             )}
@@ -397,12 +403,14 @@ export default function InvoicePrintA4() {
                 {cfg.showMrpColumn && <th className="py-2.5 text-right w-[11%] whitespace-nowrap">MRP</th>}
                 {cfg.showRate !== false && <th className="py-2.5 text-right w-[12%] whitespace-nowrap">Rate</th>}
                 {cfg.showDiscountColumn && <th className="py-2.5 text-right w-[10%] whitespace-nowrap">Disc</th>}
-                {cfg.showTaxColumn && <th className="py-2.5 text-right w-[10%] whitespace-nowrap">GST %</th>}
+                {cfg.showTaxColumn && isRegistered && <th className="py-2.5 text-right w-[10%] whitespace-nowrap">GST %</th>}
                 {cfg.showAmount !== false && <th className="py-2.5 text-right w-[14%] whitespace-nowrap">Amount</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {(invoice.items || []).map((it, idx) => {
+                const itemAmt = it.total !== undefined ? Number(it.total) : (it.quantity * it.rate - (it.discount || 0));
+                const unitRate = (!isRegistered && it.quantity > 0) ? (itemAmt / it.quantity) : it.rate;
                 const matchedCatalogItem = (catalog || []).find(c => String(c.id) === String(it.item_id) || (c.name && it.item_name && c.name.toLowerCase() === it.item_name.toLowerCase()));
                 const mrpVal = it.item_mrp || it.mrp || matchedCatalogItem?.mrp;
                 const hsnVal = it.hsn || matchedCatalogItem?.hsn;
@@ -435,12 +443,12 @@ export default function InvoicePrintA4() {
                       <td className="py-3 text-right text-slate-400 number-cell align-top whitespace-nowrap">{mrpVal ? fmtCurrency(mrpVal) : '-'}</td>
                     )}
                     {cfg.showRate !== false && (
-                      <td className="py-3 text-right text-slate-700 number-cell align-top whitespace-nowrap">{fmtCurrency(it.rate)}</td>
+                      <td className="py-3 text-right text-slate-700 number-cell align-top whitespace-nowrap">{fmtCurrency(unitRate)}</td>
                     )}
                     {cfg.showDiscountColumn && (
                       <td className="py-3 text-right text-slate-500 number-cell align-top whitespace-nowrap">{it.discount ? fmtCurrency(it.discount) : '-'}</td>
                     )}
-                    {cfg.showTaxColumn && (
+                    {cfg.showTaxColumn && isRegistered && (
                       <td className="py-3 text-right text-slate-500 align-top whitespace-nowrap">{it.tax_rate ? `${it.tax_rate}%` : '0%'}</td>
                     )}
                     {cfg.showAmount !== false && (
@@ -500,13 +508,15 @@ export default function InvoicePrintA4() {
 
           <div className="w-64 space-y-1.5 text-right">
             <div className="flex justify-between py-1 border-b border-slate-100 text-xs">
-              <span className="text-slate-500">Taxable Value:</span>
-              <span className="font-bold text-slate-800 number-cell">{fmtCurrency(invoice.subtotal)}</span>
+              <span className="text-slate-500">{isRegistered ? 'Taxable Value:' : 'Subtotal:'}</span>
+              <span className="font-bold text-slate-800 number-cell">{fmtCurrency(displaySubtotal)}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-100 text-xs">
-              <span className="text-slate-500">Total Tax (GST):</span>
-              <span className="font-bold text-slate-800 number-cell">{fmtCurrency(invoice.tax_amount)}</span>
-            </div>
+            {isRegistered && displayTax > 0 && (
+              <div className="flex justify-between py-1 border-b border-slate-100 text-xs">
+                <span className="text-slate-500">Total Tax (GST):</span>
+                <span className="font-bold text-slate-800 number-cell">{fmtCurrency(displayTax)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-2 border-b-2 border-slate-900 text-sm">
               <span className="font-black text-slate-900">Grand Total:</span>
               <span className="font-black text-slate-900 number-cell">{fmtCurrency(invoice.total_amount)}</span>

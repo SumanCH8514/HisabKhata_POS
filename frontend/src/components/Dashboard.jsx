@@ -429,32 +429,34 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-slate-100 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
                 {chartMode === 'sales' ? (
                   <>
-                    <span className="flex items-center gap-1 text-[11px]">
-                      <span className="w-2 h-2 rounded bg-emerald-500 inline-block" /> Sales Inflow
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Sales Inflow
                     </span>
-                    <span className="flex items-center gap-1 text-[11px]">
-                      <span className="w-2 h-2 rounded bg-blue-300 ring-1 ring-blue-400 inline-block" /> Today
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-blue-400 ring-2 ring-blue-100 shrink-0" /> Today
                     </span>
-                    <span className="flex items-center gap-1 text-[11px]">
-                      <span className="w-2 h-2 rounded bg-slate-200 inline-block" /> Normal Days
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" /> Normal Days
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="flex items-center gap-1 text-[11px]">
-                      <span className="w-2 h-2 rounded bg-emerald-500 inline-block" /> Inflow (Sales)
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Inflow (Sales)
                     </span>
-                    <span className="flex items-center gap-1 text-[11px]">
-                      <span className="w-2 h-2 rounded bg-rose-400 inline-block" /> Outflow (Purchases & Expenses)
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" /> Outflow (Purchases & Expenses)
                     </span>
                   </>
                 )}
               </div>
-              <span className="text-[11px] text-slate-400 font-medium">Press F2 for Instant POS Bill</span>
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium whitespace-nowrap">
+                Press <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 border border-slate-200 rounded text-slate-600 shadow-2xs">F2</kbd> for Instant POS Bill
+              </span>
             </div>
           </div>
 

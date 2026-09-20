@@ -4,7 +4,7 @@ import {
   Download, Printer, CheckCircle2, AlertCircle,
   MapPin, Phone, Globe, Mail, ArrowDownLeft, ShieldCheck, Copy, Check, User
 } from 'lucide-react';
-import { getPublicInvoice, fmtCurrency, getImageBase64 } from '../api/client.js';
+import { getPublicInvoice, fmtCurrency, getImageBase64, isBusinessGstRegistered } from '../api/client.js';
 import logoLight from '../assets/logo_light_mode.png';
 import logoDark from '../assets/logo_dark_mode.png';
 
@@ -107,8 +107,10 @@ export default function PublicReceipt() {
 
   const comp = data.company || {};
   const items = data.items || [];
+  const isRegistered = isBusinessGstRegistered(comp);
   const isPaid = (data.balance_due || 0) <= 0;
   const grandTotal = Number(data.total_amount) || 0;
+  const displaySubtotal = isRegistered ? Number(data.subtotal) : grandTotal;
   const balanceDue = Number(data.balance_due) || 0;
   const amountPaid = Number(data.amount_paid) || 0;
 
@@ -257,7 +259,7 @@ export default function PublicReceipt() {
                 {data.invoice_number}
               </span>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
-                {data.type || 'TAX INVOICE'}
+                {isRegistered ? (data.type || 'TAX INVOICE') : 'BILL OF SUPPLY'}
               </span>
             </div>
             <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">
@@ -361,10 +363,10 @@ export default function PublicReceipt() {
             {data.subtotal > 0 && (
               <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Subtotal</span>
-                <span className="font-medium number-cell">{fmtCurrency(data.subtotal)}</span>
+                <span className="font-medium number-cell">{fmtCurrency(displaySubtotal)}</span>
               </div>
             )}
-            {data.tax_amount > 0 && (
+            {isRegistered && data.tax_amount > 0 && (
               <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>GST Tax</span>
                 <span className="font-medium number-cell">{fmtCurrency(data.tax_amount)}</span>

@@ -6,7 +6,7 @@ import {
   Briefcase, Activity, CreditCard, PieChart, Book,
   Wrench, Save, UserPlus, Headphones, MessageCircle, ChevronRight, Plus, LogOut, Building2, ExternalLink, ShieldCheck,
   Bluetooth, Printer, Zap, RefreshCw, AlertCircle, ScanLine, Radio, CheckCircle2,
-  Sun, Moon, Laptop
+  Sun, Moon, Laptop, Info
 } from 'lucide-react';
 import { getCompanies, createCompany, getUserProfile, syncUserSettingsFromCloud, getMyPendingInvitations, respondToInvitation } from '../api/client.js';
 import { useTheme } from '../utils/theme.js';
@@ -741,6 +741,22 @@ export default function Layout() {
                           <span>Invoice & Tax Settings</span>
                         </div>
                         <ChevronRight size={13} className="text-slate-300" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          navigate('/about-project');
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between py-2 px-2.5 rounded-lg hover:bg-slate-50 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Info size={14} className="text-emerald-600" />
+                          <span>About HisabKhata POS</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                          v1.1.0
+                        </span>
                       </button>
 
                       <a

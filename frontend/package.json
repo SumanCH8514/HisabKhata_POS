@@ -1,6 +1,6 @@
 {
   "name": "hisabkhata-pos-frontend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "HisabKhata POS — React Frontend (Cloudflare Pages)",
   "private": true,
   "type": "module",
