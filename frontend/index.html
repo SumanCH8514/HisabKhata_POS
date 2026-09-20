@@ -69,6 +69,22 @@
   }
   </script>
 
+  <script>
+    (function () {
+      try {
+        const theme = localStorage.getItem('theme') || 'system';
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.classList.remove('light');
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add('light');
+        }
+      } catch {}
+    })();
+  </script>
+
   <style id="splash-screen-style">
     :root {
       --splash-bg: #f8fafc;
@@ -77,15 +93,6 @@
       --splash-brand-glow: rgba(16, 185, 129, 0.12);
       --splash-dot: #10b981;
     }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --splash-bg: #090d16;
-        --splash-text: #f8fafc;
-        --splash-subtext: #94a3b8;
-        --splash-brand-glow: rgba(16, 185, 129, 0.25);
-        --splash-dot: #34d399;
-      }
-    }
     html.dark {
       --splash-bg: #090d16 !important;
       --splash-text: #f8fafc !important;
@@ -93,12 +100,12 @@
       --splash-brand-glow: rgba(16, 185, 129, 0.25) !important;
       --splash-dot: #34d399 !important;
     }
-    html:not(.dark) {
-      --splash-bg: #f8fafc;
-      --splash-text: #0f172a;
-      --splash-subtext: #64748b;
-      --splash-brand-glow: rgba(16, 185, 129, 0.12);
-      --splash-dot: #10b981;
+    html.light {
+      --splash-bg: #f8fafc !important;
+      --splash-text: #0f172a !important;
+      --splash-subtext: #64748b !important;
+      --splash-brand-glow: rgba(16, 185, 129, 0.12) !important;
+      --splash-dot: #10b981 !important;
     }
 
     #app-splash-screen {
@@ -156,16 +163,26 @@
       filter: drop-shadow(0 10px 25px var(--splash-brand-glow));
     }
 
-    /* Theme-specific logo switching */
+    /* Strict deterministic theme-specific logo switching */
     html.dark #splash-logo-light { display: none !important; }
     html.dark #splash-logo-dark { display: block !important; }
-    html:not(.dark) #splash-logo-light { display: block !important; }
-    html:not(.dark) #splash-logo-dark { display: none !important; }
+    html.light #splash-logo-light { display: block !important; }
+    html.light #splash-logo-dark { display: none !important; }
 
+    /* Default fallback before JS runs */
     @media (prefers-color-scheme: dark) {
-      html:not(.dark):not(.light) #splash-logo-light { display: none !important; }
-      html:not(.dark):not(.light) #splash-logo-dark { display: block !important; }
+      html:not(.light):not(.dark) {
+        --splash-bg: #090d16;
+        --splash-text: #f8fafc;
+        --splash-subtext: #94a3b8;
+        --splash-brand-glow: rgba(16, 185, 129, 0.25);
+        --splash-dot: #34d399;
+      }
+      html:not(.light):not(.dark) #splash-logo-light { display: none !important; }
+      html:not(.light):not(.dark) #splash-logo-dark { display: block !important; }
     }
+    html:not(.dark):not(.light) #splash-logo-light { display: block; }
+    html:not(.dark):not(.light) #splash-logo-dark { display: none; }
 
     .splash-loader {
       display: flex;
@@ -231,30 +248,51 @@
 
   <script>
     (function () {
-      try {
-        const theme = localStorage.getItem('theme') || 'system';
-        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        if (isDark) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+      function applyDynamicSplash() {
+        try {
+          const theme = localStorage.getItem('theme') || 'system';
+          const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+          }
 
-        window.addEventListener('DOMContentLoaded', function () {
-          try {
-            const compRaw = localStorage.getItem('cached_company');
-            if (compRaw) {
-              const comp = JSON.parse(compRaw);
-              if (comp && comp.name && comp.name.trim()) {
+          const compRaw = localStorage.getItem('cached_company');
+          if (compRaw) {
+            const comp = JSON.parse(compRaw);
+            if (comp) {
+              // Custom company logo support
+              if (comp.logo_url && comp.logo_url.trim()) {
+                const box = document.querySelector('.splash-logo-box');
+                if (box) {
+                  box.innerHTML = '<img id="splash-custom-logo" src="' + comp.logo_url.trim() + '" alt="' + (comp.name || 'Brand Logo') + '" class="splash-logo-img" style="max-height: 96px; object-fit: contain;" />';
+                }
+              }
+              // Custom company name support
+              if (comp.name && comp.name.trim()) {
                 const titleEl = document.getElementById('splash-brand-title');
                 const subEl = document.getElementById('splash-brand-sub');
                 if (titleEl) titleEl.textContent = comp.name.trim().toUpperCase();
                 if (subEl) subEl.textContent = 'Powered by HisabKhata POS';
               }
             }
-          } catch {}
-        });
-      } catch {}
+          }
+        } catch {}
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyDynamicSplash);
+      } else {
+        applyDynamicSplash();
+      }
+
+      window.addEventListener('theme_changed', applyDynamicSplash);
+      window.addEventListener('hk_theme_changed', applyDynamicSplash);
+      window.addEventListener('storage', applyDynamicSplash);
     })();
   </script>
 </head>

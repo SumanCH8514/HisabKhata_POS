@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 
 export const getTheme = () => {
   try {
-    return localStorage.getItem('theme') || 'light';
+    return localStorage.getItem('theme') || 'system';
   } catch {
-    return 'light';
+    return 'system';
   }
 };
 
@@ -22,8 +22,10 @@ export const applyTheme = (themeName) => {
 
   if (isDark) {
     document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('light');
   } else {
     document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
   }
   return isDark;
 };
