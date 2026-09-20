@@ -181,26 +181,29 @@ export default function AboutProject() {
           <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
-            <div className="flex items-center gap-3.5 sm:gap-5">
-              <div className="w-13 h-13 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2 flex items-center justify-center shadow-lg shrink-0">
+            <div className="flex items-center gap-3 sm:gap-5 min-w-0 flex-1 w-full sm:w-auto">
+              <div
+                style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
+                className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2 flex items-center justify-center shadow-lg shrink-0 overflow-hidden"
+              >
                 <img
                   src={theme === 'light' ? logoLight : logoDark}
                   alt="HisabKhata POS Logo"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain max-h-full max-w-full"
                 />
               </div>
 
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl sm:text-3xl font-black tracking-tight text-white leading-tight">
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white leading-tight">
                     HisabKhata POS
                   </h1>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     {APP_VERSION}
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1 max-w-xl leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1 leading-relaxed">
                   Enterprise GST Billing, Multi-Unit Inventory & Point-of-Sale System engineered for retail, wholesale, and multi-user businesses.
                 </p>
               </div>
@@ -415,35 +418,35 @@ export default function AboutProject() {
             Client Environment & Runtime Diagnostics
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between sm:block">
-              <span className="text-slate-400 block text-[10px] font-bold">Network Connection</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 sm:mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                {systemInfo.online ? 'Online' : 'Offline Mode'}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 text-xs">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-slate-400 block text-[9.5px] sm:text-[10px] font-bold">Network Status</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 mt-0.5 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {systemInfo.online ? 'Online' : 'Offline'}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between sm:block">
-              <span className="text-slate-400 block text-[10px] font-bold">Web Bluetooth API</span>
-              <span className={`font-bold inline-flex items-center gap-1 sm:mt-0.5 ${
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-slate-400 block text-[9.5px] sm:text-[10px] font-bold">Bluetooth Driver</span>
+              <span className={`font-bold inline-flex items-center gap-1 mt-0.5 text-xs ${
                 systemInfo.bluetooth ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
               }`}>
-                {systemInfo.bluetooth ? 'Hardware Supported' : 'Standard Web Driver'}
+                {systemInfo.bluetooth ? 'Supported' : 'Standard'}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between sm:block">
-              <span className="text-slate-400 block text-[10px] font-bold">Screen Viewport</span>
-              <span className="font-bold text-slate-700 dark:text-slate-300 block sm:mt-0.5">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-slate-400 block text-[9.5px] sm:text-[10px] font-bold">Screen Viewport</span>
+              <span className="font-bold text-slate-700 dark:text-slate-300 block mt-0.5 text-xs">
                 {systemInfo.screen}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-center">
-              <span className="text-slate-400 block text-[10px] font-bold">Production Domain</span>
-              <span className="font-bold text-slate-700 dark:text-slate-300 block mt-0.5 truncate text-[11px] sm:text-xs" title="pos.hisabkhata.sumanonline.com">
-                pos.hisabkhata.sumanonline.com
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-slate-400 block text-[9.5px] sm:text-[10px] font-bold">Cloud Domain</span>
+              <span className="font-bold text-slate-700 dark:text-slate-300 block mt-0.5 truncate text-[10.5px] sm:text-xs" title="pos.hisabkhata.sumanonline.com">
+                pos.hisabkhata...
               </span>
             </div>
           </div>
