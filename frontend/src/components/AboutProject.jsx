@@ -4,7 +4,8 @@ import {
   Info, Sparkles, CheckCircle2, ShieldCheck, Smartphone, Printer,
   Database, Cloud, Cpu, Layers, GitCommit, ExternalLink, ArrowLeft,
   Calendar, Zap, Award, Check, Copy, RefreshCw, Terminal, Users,
-  ShoppingBag, ShoppingCart, FileText, Lock, Globe, MessageCircle
+  ShoppingBag, ShoppingCart, FileText, Lock, Globe, MessageCircle,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import logoDark from '../assets/logo_dark_mode.png';
 import logoLight from '../assets/logo_light_mode.png';
@@ -93,6 +94,28 @@ export default function AboutProject() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [expandedVersions, setExpandedVersions] = useState({
+    'v1.1.0': true,
+    'v1.0.0': false
+  });
+
+  const toggleVersion = (ver) => {
+    setExpandedVersions(prev => ({
+      ...prev,
+      [ver]: !prev[ver]
+    }));
+  };
+
+  const allExpanded = CHANGELOG.every(rel => expandedVersions[rel.version]);
+
+  const toggleAll = () => {
+    const nextState = !allExpanded;
+    const nextObj = {};
+    CHANGELOG.forEach(rel => {
+      nextObj[rel.version] = nextState;
+    });
+    setExpandedVersions(nextObj);
+  };
   const [systemInfo, setSystemInfo] = useState({
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
     bluetooth: false,
@@ -250,8 +273,8 @@ export default function AboutProject() {
         </div>
 
         {/* Release Changelog Section */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <GitCommit size={20} className="text-emerald-600 dark:text-emerald-400" />
@@ -261,68 +284,120 @@ export default function AboutProject() {
                 Detailed version release notes, newly shipped features, and security enhancements
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
-              Current: <strong>{APP_VERSION}</strong>
-            </span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={toggleAll}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer select-none"
+              >
+                {allExpanded ? (
+                  <>
+                    <ChevronUp size={14} />
+                    <span>Collapse All</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={14} />
+                    <span>Expand All</span>
+                  </>
+                )}
+              </button>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                Current: <strong>{APP_VERSION}</strong>
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-8">
-            {CHANGELOG.map((rel) => (
-              <div
-                key={rel.version}
-                className={`rounded-2xl border p-5 sm:p-6 transition-all ${
-                  rel.current
-                    ? 'bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-300/80 dark:border-emerald-800/80 shadow-xs'
-                    : 'bg-slate-50/50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200/60 dark:border-slate-800">
-                  <div className="flex items-center gap-2.5">
-                    <span className={`text-base font-black px-2.5 py-0.5 rounded-lg border ${
-                      rel.current
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                        : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
-                    }`}>
-                      {rel.version}
-                    </span>
-                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                      {rel.title}
-                    </h3>
-                  </div>
+          <div className="space-y-4">
+            {CHANGELOG.map((rel) => {
+              const isExpanded = !!expandedVersions[rel.version];
+              return (
+                <div
+                  key={rel.version}
+                  className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                    rel.current
+                      ? 'bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-300/80 dark:border-emerald-800/80 shadow-xs'
+                      : 'bg-slate-50/50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  {/* Clickable Card Header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleVersion(rel.version)}
+                    className={`w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 text-left transition-colors cursor-pointer select-none ${
+                      isExpanded
+                        ? 'border-b border-slate-200/60 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40'
+                        : 'hover:bg-white/80 dark:hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`text-sm sm:text-base font-black px-2.5 py-0.5 rounded-lg border shrink-0 ${
+                        rel.current
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
+                      }`}>
+                        {rel.version}
+                      </span>
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
+                        {rel.title}
+                      </h3>
+                    </div>
 
-                  <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar size={13} />
-                      {rel.date}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {rel.status}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {rel.highlights.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                          {item.title}
-                        </h4>
-                        <span className={`text-[9.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${item.tagColor}`}>
-                          {item.tag}
+                    <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs">
+                          <Calendar size={13} />
+                          {rel.date}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hidden sm:inline-block">
+                          {rel.status}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200/80 dark:border-slate-700">
+                          {rel.highlights.length} updates
                         </span>
                       </div>
-                      <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        {item.description}
-                      </p>
+
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
+                        isExpanded
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}>
+                        <ChevronDown
+                          size={15}
+                          className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        />
+                      </div>
                     </div>
-                  ))}
+                  </button>
+
+                  {/* Expandable Content Area */}
+                  {isExpanded && (
+                    <div className="p-4 sm:p-6 animate-fade-in">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {rel.highlights.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                                {item.title}
+                              </h4>
+                              <span className={`text-[9.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${item.tagColor}`}>
+                                {item.tag}
+                              </span>
+                            </div>
+                            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                              {item.description}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
