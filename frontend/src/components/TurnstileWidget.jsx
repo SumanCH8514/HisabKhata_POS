@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export default function TurnstileWidget({
   onVerify,
@@ -7,8 +7,31 @@ export default function TurnstileWidget({
   theme = 'auto',
   siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'
 }) {
+  const wrapperRef = useRef(null);
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (wrapperRef.current) {
+        const width = wrapperRef.current.offsetWidth;
+        if (width > 0 && width < 304) {
+          setScale(Math.max(0.75, (width - 4) / 300));
+        } else {
+          setScale(1);
+        }
+      }
+    };
+
+    handleResize();
+    const timer = setTimeout(handleResize, 250);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -27,6 +50,7 @@ export default function TurnstileWidget({
         const id = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
           theme: theme === 'dark' ? 'dark' : (theme === 'light' ? 'light' : 'auto'),
+          size: 'flexible',
           callback: (token) => {
             if (isMounted && onVerify) onVerify(token);
           },
@@ -84,8 +108,18 @@ export default function TurnstileWidget({
   }, [siteKey, theme]);
 
   return (
-    <div className="flex justify-center my-3 min-h-[65px] w-full overflow-hidden">
-      <div ref={containerRef} />
+    <div
+      ref={wrapperRef}
+      className="flex justify-center items-center my-3 min-h-[65px] w-full overflow-visible"
+    >
+      <div
+        ref={containerRef}
+        className="flex justify-center origin-center transition-transform duration-150"
+        style={{
+          transform: scale < 1 ? `scale(${scale})` : undefined,
+          transformOrigin: 'center center'
+        }}
+      />
     </div>
   );
 }

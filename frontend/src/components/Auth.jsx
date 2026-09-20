@@ -437,7 +437,7 @@ export default function Auth({ defaultIsLogin = true }) {
         )}
       </nav>
 
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 py-8 sm:py-12">
+      <main className="flex-1 flex items-center justify-center p-3 sm:p-6 py-6 sm:py-12">
         <div className="w-full max-w-md">
 
           <div className="text-center mb-6">
@@ -457,7 +457,7 @@ export default function Auth({ defaultIsLogin = true }) {
             </p>
           </div>
 
-          <div className="bg-white dark:bg-[#0d1322] border border-slate-200/90 dark:border-slate-800/80 rounded-3xl p-5 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-2xl dark:shadow-black/60 transition-all duration-300">
+          <div className="bg-white dark:bg-[#0d1322] border border-slate-200/90 dark:border-slate-800/80 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-2xl dark:shadow-black/60 transition-all duration-300">
 
             {authMode !== 'forgot' && authMode !== 'verify' && (
               <div className="flex bg-slate-100 dark:bg-[#030712] p-1 rounded-2xl mb-6 border border-slate-200/60 dark:border-slate-800/80">
