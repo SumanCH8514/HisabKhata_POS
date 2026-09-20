@@ -41,45 +41,26 @@ export function buildInvoiceReceiptEmail({
     ? items.map(item => {
         const { itemName, qty, mrp, total, amt, tax } = buildItemVars(item);
         return `
-          <tr class="table-row" style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 10px 4px 10px 0; color: #0f172a; font-size: 12px; font-weight: 500;">${itemName}</td>
-            <td align="center" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${qty}</td>
-            <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${currency}${mrp}</td>
-            <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${currency}${amt}</td>
-            ${isRegistered ? `<td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${currency}${tax}</td>` : ''}
-            <td align="right" style="padding: 10px 0 10px 4px; color: #0f172a; font-size: 12px; font-weight: 700;">${currency}${total}</td>
+          <tr class="table-row" style="border-bottom: 1px solid #e2e8f0;">
+            <td class="table-cell-heading" style="padding: 10px 4px 10px 0; color: #0f172a; font-size: 12px; font-weight: 700; line-height: 1.35; vertical-align: middle;">${itemName}</td>
+            <td align="center" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; vertical-align: middle;">${qty}</td>
+            <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; white-space: nowrap; vertical-align: middle;">${currency}${mrp}</td>
+            <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; white-space: nowrap; vertical-align: middle;">${currency}${amt}</td>
+            ${isRegistered ? `<td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; white-space: nowrap; vertical-align: middle;">${currency}${tax}</td>` : ''}
+            <td align="right" class="table-cell-total" style="padding: 10px 0 10px 4px; color: #0f172a; font-size: 12px; font-weight: 700; white-space: nowrap; vertical-align: middle;">${currency}${total}</td>
           </tr>
         `;
       }).join('')
     : `
-      <tr class="table-row" style="border-bottom: 1px solid #f1f5f9;">
-        <td style="padding: 10px 4px 10px 0; color: #0f172a; font-size: 12px; font-weight: 500;">Sales Transaction</td>
-        <td align="center" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">1</td>
-        <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${currency}${grandTotal}</td>
-        <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${currency}${grandTotal}</td>
-        ${isRegistered ? `<td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px;">${currency}0.00</td>` : ''}
-        <td align="right" style="padding: 10px 0 10px 4px; color: #0f172a; font-size: 12px; font-weight: 700;">${currency}${grandTotal}</td>
+      <tr class="table-row" style="border-bottom: 1px solid #e2e8f0;">
+        <td class="table-cell-heading" style="padding: 10px 4px 10px 0; color: #0f172a; font-size: 12px; font-weight: 700; line-height: 1.35; vertical-align: middle;">Sales Transaction</td>
+        <td align="center" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; vertical-align: middle;">1</td>
+        <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; white-space: nowrap; vertical-align: middle;">${currency}${grandTotal}</td>
+        <td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; white-space: nowrap; vertical-align: middle;">${currency}${grandTotal}</td>
+        ${isRegistered ? `<td align="right" class="table-cell-muted" style="padding: 10px 4px; color: #64748b; font-size: 12px; white-space: nowrap; vertical-align: middle;">${currency}0.00</td>` : ''}
+        <td align="right" class="table-cell-total" style="padding: 10px 0 10px 4px; color: #0f172a; font-size: 12px; font-weight: 700; white-space: nowrap; vertical-align: middle;">${currency}${grandTotal}</td>
       </tr>
     `;
-
-  const itemsCards = items.length > 0
-    ? items.map(item => {
-        const { itemName, qty, mrp, total, tax } = buildItemVars(item);
-        return `<div class="item-card" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-            <div style="font-size:13px;font-weight:600;color:#0f172a;flex:1;padding-right:8px;">${itemName}</div>
-            <div style="font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap;">${currency}${total}</div>
-          </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:#64748b;">Qty: <b>${qty}</b></span>
-            <span style="font-size:11px;color:#64748b;">MRP: <b>${currency}${mrp}</b></span>
-            ${isRegistered && Number(tax) > 0 ? `<span style="font-size:11px;color:#64748b;">Tax: <b>${currency}${tax}</b></span>` : ''}
-          </div>
-        </div>`;
-      }).join('')
-    : `<div class="item-card" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;"><div style="font-size:13px;font-weight:600;color:#0f172a;">Sales Transaction</div><div style="font-size:14px;font-weight:700;color:#0f172a;">${currency}${grandTotal}</div></div>
-      </div>`;
 
   const acceptedOffers = items.length > 0
     ? items.map(item => ({
@@ -138,7 +119,7 @@ export function buildInvoiceReceiptEmail({
 
   let html = rawHtml;
   html = html.replace(/<tbody class="items-body">[\s\S]*?<\/tbody>/, `<tbody class="items-body">${itemsRows}</tbody>`);
-  html = html.replace(/<div class="items-cards"[^>]*><\/div>/, `<div class="items-cards" style="display:none;margin-bottom:16px;">${itemsCards}</div>`);
+  html = html.replace(/<div class="items-cards"[^>]*><\/div>/, '');
 
   const numDue = Number(balanceDue) || 0;
   const paymentStatusText = numDue > 0
@@ -159,7 +140,7 @@ export function buildInvoiceReceiptEmail({
     : '';
 
   const taxColumnHeader = isRegistered
-    ? `<th align="right" style="padding: 10px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px;">Tax</th>`
+    ? `<th align="right" style="padding: 8px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">TAX</th>`
     : '';
   const taxTotalRow = isRegistered
     ? `<tr><td class="text-muted" style="font-size: 13px; color: #64748b; padding-bottom: 8px;">Tax / GST</td><td align="right" class="text-body" style="font-size: 13px; color: #0f172a; padding-bottom: 8px;">${currency}${taxTotal}</td></tr>`
