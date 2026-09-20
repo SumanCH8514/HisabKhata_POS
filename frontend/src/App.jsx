@@ -29,6 +29,21 @@ import AboutProject from './components/AboutProject.jsx';
 import { Toaster } from 'react-hot-toast';
 
 export default function App() {
+  React.useEffect(() => {
+    const splash = document.getElementById('app-splash-screen');
+    if (splash) {
+      const timer = setTimeout(() => {
+        splash.classList.add('splash-fade-out');
+        setTimeout(() => {
+          if (splash && splash.parentNode) {
+            splash.parentNode.removeChild(splash);
+          }
+        }, 400);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   return (
     <>
       <Toaster

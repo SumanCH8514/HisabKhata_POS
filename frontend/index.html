@@ -13,7 +13,9 @@
     content="HisabKhata POS, POS software, GST billing, inventory management, retail billing, thermal invoice, barcode scanner, khata ledger, day book, small business ERP" />
   <meta name="author" content="HisabKhata" />
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-  <meta name="theme-color" content="#10b981" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090d16" />
   <link rel="canonical" href="https://pos.hisabkhata.sumanonline.com/" />
 
   <meta property="og:type" content="website" />
@@ -67,20 +69,216 @@
   }
   </script>
 
+  <style id="splash-screen-style">
+    :root {
+      --splash-bg: #f8fafc;
+      --splash-text: #0f172a;
+      --splash-subtext: #64748b;
+      --splash-brand-glow: rgba(16, 185, 129, 0.12);
+      --splash-dot: #10b981;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --splash-bg: #090d16;
+        --splash-text: #f8fafc;
+        --splash-subtext: #94a3b8;
+        --splash-brand-glow: rgba(16, 185, 129, 0.25);
+        --splash-dot: #34d399;
+      }
+    }
+    html.dark {
+      --splash-bg: #090d16 !important;
+      --splash-text: #f8fafc !important;
+      --splash-subtext: #94a3b8 !important;
+      --splash-brand-glow: rgba(16, 185, 129, 0.25) !important;
+      --splash-dot: #34d399 !important;
+    }
+    html:not(.dark) {
+      --splash-bg: #f8fafc;
+      --splash-text: #0f172a;
+      --splash-subtext: #64748b;
+      --splash-brand-glow: rgba(16, 185, 129, 0.12);
+      --splash-dot: #10b981;
+    }
+
+    #app-splash-screen {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background-color: var(--splash-bg);
+      color: var(--splash-text);
+      z-index: 9999999;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 48px 24px calc(32px + env(safe-area-inset-bottom, 0px)) 24px;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: auto;
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #app-splash-screen.splash-fade-out {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    .splash-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+
+    .splash-logo-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      max-width: 280px;
+      width: 78%;
+      animation: splashPulse 2.4s ease-in-out infinite;
+    }
+
+    .splash-logo-img {
+      width: 100%;
+      height: auto;
+      max-height: 84px;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 25px var(--splash-brand-glow));
+    }
+
+    /* Theme-specific logo switching */
+    html.dark #splash-logo-light { display: none !important; }
+    html.dark #splash-logo-dark { display: block !important; }
+    html:not(.dark) #splash-logo-light { display: block !important; }
+    html:not(.dark) #splash-logo-dark { display: none !important; }
+
+    @media (prefers-color-scheme: dark) {
+      html:not(.dark):not(.light) #splash-logo-light { display: none !important; }
+      html:not(.dark):not(.light) #splash-logo-dark { display: block !important; }
+    }
+
+    .splash-loader {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 32px;
+    }
+
+    .splash-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--splash-dot);
+      opacity: 0.3;
+      animation: splashBounce 1.4s infinite ease-in-out both;
+    }
+
+    .splash-dot:nth-child(1) { animation-delay: -0.32s; }
+    .splash-dot:nth-child(2) { animation-delay: -0.16s; }
+    .splash-dot:nth-child(3) { animation-delay: 0s; }
+
+    .splash-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding-top: 20px;
+    }
+
+    .splash-brandname {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--splash-text);
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .splash-subtitle {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      color: var(--splash-subtext);
+      margin-top: 4px;
+      margin-bottom: 0;
+      line-height: 1.3;
+    }
+
+    @keyframes splashPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+
+    @keyframes splashBounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+      40% { transform: scale(1.15); opacity: 1; }
+    }
+  </style>
+
   <script>
     (function () {
-      const theme = localStorage.getItem('theme') || 'system';
-      const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      if (dark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      try {
+        const theme = localStorage.getItem('theme') || 'system';
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+
+        window.addEventListener('DOMContentLoaded', function () {
+          try {
+            const compRaw = localStorage.getItem('cached_company');
+            if (compRaw) {
+              const comp = JSON.parse(compRaw);
+              if (comp && comp.name && comp.name.trim()) {
+                const titleEl = document.getElementById('splash-brand-title');
+                const subEl = document.getElementById('splash-brand-sub');
+                if (titleEl) titleEl.textContent = comp.name.trim().toUpperCase();
+                if (subEl) subEl.textContent = 'Powered by HisabKhata POS';
+              }
+            }
+          } catch {}
+        });
+      } catch {}
     })();
   </script>
 </head>
 
-<body class="bg-[#f6f8fa] text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
+<body class="bg-[#f6f8fa] dark:bg-[#090d16] text-slate-800 dark:text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
+  <div id="app-splash-screen" role="status" aria-label="Loading HisabKhata POS">
+    <div class="splash-center">
+      <div class="splash-logo-box">
+        <img id="splash-logo-light" src="/logo_light_mode.png" alt="HisabKhata POS Logo" class="splash-logo-img" />
+        <img id="splash-logo-dark" src="/logo_dark_mode.png" alt="HisabKhata POS Logo" class="splash-logo-img" />
+      </div>
+      <div class="splash-loader" aria-hidden="true">
+        <span class="splash-dot"></span>
+        <span class="splash-dot"></span>
+        <span class="splash-dot"></span>
+      </div>
+    </div>
+
+    <div class="splash-footer">
+      <p id="splash-brand-title" class="splash-brandname">HISABKHATA POS</p>
+      <p id="splash-brand-sub" class="splash-subtitle">Smart Billing • Inventory • Khata Ledger</p>
+    </div>
+  </div>
+
   <div id="root"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

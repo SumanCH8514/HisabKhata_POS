@@ -14,23 +14,15 @@ import { getItems, createItem, updateItem, deleteItem, getCategories, createCate
   getSubCategories, createSubCategory, deleteSubCategory,
   getBrands, createBrand, deleteBrand,
   getUnits, createUnit, deleteUnit, getUnitConversions, createUnitConversion, deleteUnitConversion,
-  uploadFile, fmtCurrency, fmt, generateAIDescription, getPosSettings } from '../api/client.js';
+  uploadFile, fmtCurrency, fmt, generateAIDescription, getPosSettings,
+  isBusinessGstRegistered, getActiveTaxRates, getDefaultTaxRate } from '../api/client.js';
 import { toast } from '../utils/toast.js';
 
 const UNITS   = ['Pcs', 'Mtr', 'Kg', 'Ltr', 'Box', 'Pair', 'Set', 'Roll'];
-const getActiveTaxRates = () => {
-  try {
-    const posCfg = getPosSettings();
-    if (Array.isArray(posCfg.enabledTaxSlabs) && posCfg.enabledTaxSlabs.length > 0) {
-      return posCfg.enabledTaxSlabs.map(Number).sort((a, b) => a - b);
-    }
-    const raw = localStorage.getItem('hk_active_tax_rates');
-    if (raw) return JSON.parse(raw).map(Number).sort((a, b) => a - b);
-  } catch {}
-  return [0, 5, 12, 18, 28];
-};
 
-const getDefaultTaxMode = () => {
+const getDefaultTaxMode = (taxRate = null) => {
+  if (!isBusinessGstRegistered()) return 'Excl';
+  if (taxRate !== null && Number(taxRate) === 0) return 'Excl';
   try {
     const direct = localStorage.getItem('hk_tax_calculation_mode');
     if (direct === 'INCLUSIVE') return 'Incl';
@@ -150,13 +142,9 @@ function CustomSelect({ value, onChange, options = [], placeholder = 'Select opt
 
 const getInitialDefaultTaxRate = () => {
   try {
-    const cfg = getPosSettings();
-    if (cfg.defaultTaxRate !== undefined && cfg.defaultTaxRate !== '') {
-      return Number(cfg.defaultTaxRate);
-    }
-    return Number(localStorage.getItem('default_tax_rate') || 18);
+    return getDefaultTaxRate();
   } catch {
-    return 18;
+    return isBusinessGstRegistered() ? 18 : 0;
   }
 };
 
@@ -167,10 +155,12 @@ const EMPTY_ITEM = {
 };
 
 function ItemModal({ item, categories, subCategories: propSubCats = [], units: unitList = [], brands: propBrands = [], onClose, onSave }) {
+  const isRegistered = isBusinessGstRegistered();
+  const initialTaxRate = item?.tax_rate !== undefined ? Number(item.tax_rate) : (isRegistered ? getDefaultTaxRate() : 0);
   const isEdit = !!item?.id;
   const [form, setForm] = useState(isEdit
-    ? { ...item, category_id: item.category_id || null, sub_category_id: item.sub_category_id || null, sub_category: item.sub_category || '', brand: item.brand || '', unit: item.unit || 'Pcs', aisle: item.aisle || '', rack: item.rack || '', shelf: item.shelf || '', rack_location: item.rack_location || '' }
-    : { ...EMPTY_ITEM, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '', aisle: '', rack: '', shelf: '' }
+    ? { ...item, category_id: item.category_id || null, sub_category_id: item.sub_category_id || null, sub_category: item.sub_category || '', brand: item.brand || '', unit: item.unit || 'Pcs', aisle: item.aisle || '', rack: item.rack || '', shelf: item.shelf || '', rack_location: item.rack_location || '', tax_rate: item.tax_rate !== undefined ? Number(item.tax_rate) : initialTaxRate }
+    : { ...EMPTY_ITEM, tax_rate: initialTaxRate, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '', aisle: '', rack: '', shelf: '' }
   );
   const [categoryList, setCategoryList] = useState(categories || []);
   const [subCategoryList, setSubCategoryList] = useState(propSubCats || []);
@@ -198,8 +188,28 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
     });
   };
   
-  const [saleTaxType, setSaleTaxType] = useState(item?.sale_tax_type || item?.tax_type || getDefaultTaxMode());
-  const [purchaseTaxType, setPurchaseTaxType] = useState(item?.purchase_tax_type || getDefaultTaxMode());
+  const [saleTaxType, setSaleTaxType] = useState(() => {
+    if (!isRegistered || initialTaxRate === 0) return 'Excl';
+    return item?.sale_tax_type || item?.tax_type || getDefaultTaxMode(initialTaxRate);
+  });
+  const [purchaseTaxType, setPurchaseTaxType] = useState(() => {
+    if (!isRegistered || initialTaxRate === 0) return 'Excl';
+    return item?.purchase_tax_type || getDefaultTaxMode(initialTaxRate);
+  });
+
+  const handleTaxRateChange = (val) => {
+    const newRate = Number(val);
+    set('tax_rate', newRate);
+    if (!isRegistered || newRate === 0) {
+      setSaleTaxType('Excl');
+      setPurchaseTaxType('Excl');
+    } else {
+      if (Number(form.tax_rate) === 0) {
+        setSaleTaxType(getDefaultTaxMode(newRate));
+        setPurchaseTaxType(getDefaultTaxMode(newRate));
+      }
+    }
+  };
 
   const [saleDiscPercent, setSaleDiscPercent] = useState('');
   const [saleDiscAmt, setSaleDiscAmt] = useState('');
@@ -515,28 +525,28 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
         await updateItem(item.id, { 
           ...form, 
           image_url: finalImageUrl,
-          tax_type: saleTaxType,
-          sale_tax_type: saleTaxType,
-          purchase_tax_type: purchaseTaxType,
+          tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : saleTaxType,
+          sale_tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : saleTaxType,
+          purchase_tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : purchaseTaxType,
           sale_price: Number(form.sale_price) || 0,
           purchase_price: Number(form.purchase_price) || 0,
           wholesale_price: Number(form.wholesale_price) || 0,
           mrp: Number(form.mrp) || 0,
-          tax_rate: Number(form.tax_rate) || 0,
+          tax_rate: !isRegistered ? 0 : (Number(form.tax_rate) || 0),
           current_stock: itemType === 'service' ? 0 : (Number(form.current_stock) || 0) 
         });
       } else {
         await createItem({ 
           ...form, 
           image_url: finalImageUrl,
-          tax_type: saleTaxType,
-          sale_tax_type: saleTaxType,
-          purchase_tax_type: purchaseTaxType,
+          tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : saleTaxType,
+          sale_tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : saleTaxType,
+          purchase_tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : purchaseTaxType,
           sale_price: Number(form.sale_price) || 0,
           purchase_price: Number(form.purchase_price) || 0,
           wholesale_price: Number(form.wholesale_price) || 0,
           mrp: Number(form.mrp) || 0,
-          tax_rate: Number(form.tax_rate) || 0,
+          tax_rate: !isRegistered ? 0 : (Number(form.tax_rate) || 0),
           opening_stock: itemType === 'service' ? 0 : (Number(form.opening_stock) || 0) 
         });
       }
@@ -546,9 +556,10 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
         }
         setPendingImageFile(null);
         setImagePreviewUrl(null);
-        setForm({ ...EMPTY_ITEM, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '' });
-        setSaleTaxType(getDefaultTaxMode());
-        setPurchaseTaxType(getDefaultTaxMode());
+        const resetTaxRate = isRegistered ? getDefaultTaxRate() : 0;
+        setForm({ ...EMPTY_ITEM, tax_rate: resetTaxRate, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '' });
+        setSaleTaxType(getDefaultTaxMode(resetTaxRate));
+        setPurchaseTaxType(getDefaultTaxMode(resetTaxRate));
         setItemType('item');
         setActiveTab('pricing');
         setError(null);
@@ -1007,7 +1018,33 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
             )}
           </div>
 
-          {activeTab === 'pricing' && (
+          {activeTab === 'pricing' && (() => {
+            const isTaxActive = isRegistered && Number(form.tax_rate) > 0;
+            const taxRateNum = Number(form.tax_rate) || 0;
+            const saleNum = parseFloat(form.sale_price) || 0;
+            const purchaseNum = parseFloat(form.purchase_price) || 0;
+
+            const saleBasePrice = isTaxActive && saleNum > 0
+              ? (saleTaxType === 'Incl' ? (saleNum / (1 + taxRateNum / 100)).toFixed(2) : saleNum.toFixed(2))
+              : null;
+            const saleTaxAmt = isTaxActive && saleNum > 0
+              ? (saleTaxType === 'Incl' ? (saleNum - saleBasePrice).toFixed(2) : ((saleNum * taxRateNum) / 100).toFixed(2))
+              : null;
+            const saleTotalWithTax = isTaxActive && saleNum > 0
+              ? (saleTaxType === 'Incl' ? saleNum.toFixed(2) : (saleNum + Number(saleTaxAmt)).toFixed(2))
+              : null;
+
+            const purchaseBaseCost = isTaxActive && purchaseNum > 0
+              ? (purchaseTaxType === 'Incl' ? (purchaseNum / (1 + taxRateNum / 100)).toFixed(2) : purchaseNum.toFixed(2))
+              : null;
+            const purchaseInputGst = isTaxActive && purchaseNum > 0
+              ? (purchaseTaxType === 'Incl' ? (purchaseNum - purchaseBaseCost).toFixed(2) : ((purchaseNum * taxRateNum) / 100).toFixed(2))
+              : null;
+            const purchaseTotalPaid = isTaxActive && purchaseNum > 0
+              ? (purchaseTaxType === 'Incl' ? purchaseNum.toFixed(2) : (purchaseNum + Number(purchaseInputGst)).toFixed(2))
+              : null;
+
+            return (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="border border-slate-200 rounded-xl p-3 bg-white shadow-xs">
@@ -1017,15 +1054,48 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden focus-within:border-emerald-500">
                     <span className="px-2.5 py-2 text-xs text-slate-500 bg-slate-50 border-r border-slate-200 font-bold">₹</span>
                     <input className="flex-1 px-2 py-1.5 text-xs font-bold text-slate-900 focus:outline-none w-0" type="number" min="0" step="0.01" placeholder="0.00" value={form.sale_price || ''} onChange={e => handleSalePriceChange(e.target.value)} />
-                    <button
-                      type="button"
-                      onClick={() => setSaleTaxType(prev => prev === 'Excl' ? 'Incl' : 'Excl')}
-                      className="px-2.5 py-1.5 text-[10px] font-black text-slate-700 bg-slate-100 hover:bg-slate-200 border-l border-slate-200 cursor-pointer transition-colors"
-                      title="Click to toggle Tax Inclusive / Exclusive"
-                    >
-                      {saleTaxType}
-                    </button>
+                    {!isRegistered ? (
+                      <span
+                        className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 border-l border-slate-200 select-none cursor-not-allowed"
+                        title="Business is unregistered (Non-GST) — Tax calculation disabled"
+                      >
+                        No Tax
+                      </span>
+                    ) : taxRateNum === 0 ? (
+                      <span
+                        className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 border-l border-slate-200 select-none cursor-not-allowed"
+                        title="Item is 0% GST (Exempt/Nil-rated) — Tax Inclusive/Exclusive is not applicable"
+                      >
+                        0%
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSaleTaxType(prev => prev === 'Excl' ? 'Incl' : 'Excl')}
+                        className={`px-2.5 py-1.5 text-[10px] font-black border-l cursor-pointer transition-colors ${
+                          saleTaxType === 'Incl'
+                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                            : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                        }`}
+                        title="Click to toggle Tax Inclusive / Exclusive"
+                      >
+                        {saleTaxType}
+                      </button>
+                    )}
                   </div>
+                  {isTaxActive && saleNum > 0 ? (
+                    saleTaxType === 'Incl' ? (
+                      <div className="mt-1.5 px-2 py-0.5 rounded bg-emerald-50/70 border border-emerald-100 text-[9px] text-emerald-800 font-medium flex items-center justify-between">
+                        <span>Base: <strong className="font-bold">₹{saleBasePrice}</strong></span>
+                        <span>GST ({taxRateNum}%): <strong className="font-bold">₹{saleTaxAmt}</strong></span>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 px-2 py-0.5 rounded bg-slate-50 border border-slate-200/80 text-[9px] text-slate-700 font-medium flex items-center justify-between">
+                        <span>+ GST ({taxRateNum}%): <strong className="font-bold">₹{saleTaxAmt}</strong></span>
+                        <span>Total: <strong className="font-bold">₹{saleTotalWithTax}</strong></span>
+                      </div>
+                    )
+                  ) : null}
                   <div className="flex gap-2 mt-2">
                     <div className="flex-1">
                       <p className="text-[9px] text-slate-400 font-semibold mb-1">Disc %</p>
@@ -1045,16 +1115,53 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
                   <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden focus-within:border-emerald-500">
                     <span className="px-2.5 py-2 text-xs text-slate-500 bg-slate-50 border-r border-slate-200 font-bold">₹</span>
                     <input className="flex-1 px-2 py-1.5 text-xs font-bold text-slate-900 focus:outline-none w-0" type="number" min="0" step="0.01" placeholder="0.00" value={form.purchase_price || ''} onChange={e => set('purchase_price', e.target.value)} />
-                    <button
-                      type="button"
-                      onClick={() => setPurchaseTaxType(prev => prev === 'Excl' ? 'Incl' : 'Excl')}
-                      className="px-2.5 py-1.5 text-[10px] font-black text-slate-700 bg-slate-100 hover:bg-slate-200 border-l border-slate-200 cursor-pointer transition-colors"
-                      title="Click to toggle Tax Inclusive / Exclusive"
-                    >
-                      {purchaseTaxType}
-                    </button>
+                    {!isRegistered ? (
+                      <span
+                        className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 border-l border-slate-200 select-none cursor-not-allowed"
+                        title="Business is unregistered (Non-GST) — Tax calculation disabled"
+                      >
+                        No Tax
+                      </span>
+                    ) : taxRateNum === 0 ? (
+                      <span
+                        className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 border-l border-slate-200 select-none cursor-not-allowed"
+                        title="Item is 0% GST (Exempt/Nil-rated) — Tax Inclusive/Exclusive is not applicable"
+                      >
+                        0%
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPurchaseTaxType(prev => prev === 'Excl' ? 'Incl' : 'Excl')}
+                        className={`px-2.5 py-1.5 text-[10px] font-black border-l cursor-pointer transition-colors ${
+                          purchaseTaxType === 'Incl'
+                            ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200'
+                            : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                        }`}
+                        title="Click to toggle Tax Inclusive / Exclusive"
+                      >
+                        {purchaseTaxType}
+                      </button>
+                    )}
                   </div>
-                  <p className="text-[9px] text-slate-400 font-medium mt-2 leading-relaxed">Cost price for gross margin reports.</p>
+                  {isTaxActive && purchaseNum > 0 ? (
+                    purchaseTaxType === 'Incl' ? (
+                      <div className="mt-1.5 px-2 py-0.5 rounded bg-blue-50/70 border border-blue-100 text-[9px] text-blue-800 font-medium flex items-center justify-between">
+                        <span>Net Cost: <strong className="font-bold">₹{purchaseBaseCost}</strong></span>
+                        <span>Input GST: <strong className="font-bold">₹{purchaseInputGst}</strong></span>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 px-2 py-0.5 rounded bg-slate-50 border border-slate-200/80 text-[9px] text-slate-700 font-medium flex items-center justify-between">
+                        <span>+ Input GST: <strong className="font-bold">₹{purchaseInputGst}</strong></span>
+                        <span>Total Paid: <strong className="font-bold">₹{purchaseTotalPaid}</strong></span>
+                      </div>
+                    )
+                  ) : null}
+                  <p className="text-[9px] text-slate-400 font-medium mt-2 leading-relaxed">
+                    {isTaxActive && purchaseTaxType === 'Incl'
+                      ? 'Gross margin reports use Net Cost (excl. Input Tax Credit).'
+                      : 'Cost price for gross margin reports.'}
+                  </p>
                 </div>
 
                 <div className="border border-slate-200 rounded-xl p-3 bg-white shadow-xs">
@@ -1106,16 +1213,27 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="border border-slate-200 rounded-xl p-3 bg-white shadow-xs">
-                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5">TAX RATE</p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">TAX RATE</p>
+                    {!isRegistered && (
+                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        Non-GST Store
+                      </span>
+                    )}
+                  </div>
                   <CustomSelect
-                    value={form.tax_rate}
-                    onChange={val => set('tax_rate', Number(val))}
+                    value={!isRegistered ? 0 : form.tax_rate}
+                    onChange={val => handleTaxRateChange(val)}
                     options={getActiveTaxRates().map(r => ({
                       value: r,
-                      label: r > 0 ? `GST ${r}%` : 'No Tax (0%)'
+                      label: r > 0 ? `GST ${r}%` : (!isRegistered ? 'No Tax (0%) — Non-GST' : 'No Tax (0%)')
                     }))}
+                    disabled={!isRegistered}
                     placeholder="Select Tax Rate"
                   />
+                  {!isRegistered && (
+                    <p className="text-[9px] text-amber-600 font-semibold mt-1">Locked to 0% because business is unregistered</p>
+                  )}
                 </div>
 
                 <div className="border border-slate-200 rounded-xl p-3 bg-white shadow-xs flex items-center justify-between">
@@ -1240,7 +1358,8 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
               </div>
 
             </div>
-          )}
+          );
+        })()}
 
           {activeTab === 'stock' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2141,7 +2260,9 @@ function ImportModal({ categories, units, onClose, onSave }) {
           const salePrice = parseFloat(rowData.saleprice || rowData.price || values[4] || 0) || 0;
           const purchasePrice = parseFloat(rowData.purchaseprice || rowData.cost || values[5] || 0) || 0;
           const mrp = parseFloat(rowData.mrp || values[6] || 0) || 0;
-          const taxRate = parseFloat(rowData.taxrate || rowData.gst || values[7] || 18) || 0;
+          const taxRate = isBusinessGstRegistered()
+            ? (parseFloat(rowData.taxrate || rowData.gst || values[7] || getDefaultTaxRate()) || 0)
+            : 0;
           const currentStock = parseFloat(rowData.currentstock || rowData.stock || rowData.quantity || rowData.qty || values[8] || 0) || 0;
           const unit = rowData.unit || values[9] || 'Pcs';
           const lowStockAlert = parseFloat(rowData.lowstockalert || rowData.lowstock || values[10] || 5) || 5;
@@ -2532,7 +2653,7 @@ export default function Inventory() {
           item.sale_price ?? 0,
           item.purchase_price ?? 0,
           item.mrp ?? 0,
-          item.tax_rate ?? 18,
+          item.tax_rate ?? (isBusinessGstRegistered() ? 18 : 0),
           item.current_stock ?? 0,
           item.unit || 'Pcs',
           item.low_stock_alert ?? 5,
@@ -2984,7 +3105,9 @@ export default function Inventory() {
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">GST Tax Rate</span>
-                        <p className="font-bold text-slate-800 mt-0.5">{selectedItem.tax_rate ?? 18}%</p>
+                        <p className="font-bold text-slate-800 mt-0.5">
+                          {!isBusinessGstRegistered() ? '0% (Non-GST)' : `${selectedItem.tax_rate || 0}%`}
+                        </p>
                       </div>
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">HSN / SAC Code</span>

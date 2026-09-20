@@ -1,0 +1,41 @@
+{
+  "name": "HisabKhata POS — GST Billing & Inventory",
+  "short_name": "HisabKhata POS",
+  "description": "High-Speed Point of Sale, GST Billing, Inventory Management & Khata Ledger",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090d16",
+  "theme_color": "#10b981",
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo_light_mode.png",
+      "sizes": "880x179",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo_dark_mode.png",
+      "sizes": "923x192",
+      "type": "image/png"
+    }
+  ]
+}
