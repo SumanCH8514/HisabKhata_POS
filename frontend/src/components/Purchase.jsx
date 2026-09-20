@@ -26,6 +26,7 @@ import {
   getActiveTaxRates,
   getDefaultTaxRate
 } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 function CustomSelect({ 
   value, 
@@ -696,11 +697,11 @@ export default function Purchase() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (form.items.some(it => !it.item_name?.trim())) {
-      alert('Please provide a name for all inward stock items');
+      toast.warning('Please provide a name for all inward stock items');
       return;
     }
     if (form.items.some(it => (Number(it.quantity) || 0) <= 0)) {
-      alert('Quantity for all items must be greater than 0');
+      toast.warning('Quantity for all items must be greater than 0');
       return;
     }
     setSubmitting(true);
@@ -734,9 +735,10 @@ export default function Purchase() {
         }))
       });
       setShowModal(false);
+      toast.success(`Purchase bill #${form.invoice_number.trim()} recorded successfully`);
       loadData();
     } catch (err) {
-      alert(err.message || 'Error recording purchase bill');
+      toast.error(err.message || 'Error recording purchase bill');
     } finally {
       setSubmitting(false);
     }

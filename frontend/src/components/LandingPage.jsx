@@ -15,6 +15,7 @@ import {
 import logoDark from '../assets/logo_dark_mode.png';
 import logoLight from '../assets/logo_light_mode.png';
 import { useTheme } from '../utils/theme.js';
+import { toast } from '../utils/toast.js';
 
 function useScrollReveal() {
   const [revealed, setRevealed] = useState(false);
@@ -102,7 +103,7 @@ export default function LandingPage() {
     if (phoneNumberInput.length >= 10) {
       handleLaunchApp();
     } else {
-      alert('Please enter a valid 10-digit mobile number to start.');
+      toast.warning('Please enter a valid 10-digit mobile number to start.');
     }
   };
 
@@ -655,7 +656,7 @@ export default function LandingPage() {
                 </div>
 
                 <button
-                  onClick={() => alert(`Simulated Receipt Printed!\nTotal: ₹${Math.max(0, calculateTotal()).toFixed(2)}`)}
+                  onClick={() => toast.success(`Simulated Receipt Printed! Total: ₹${Math.max(0, calculateTotal()).toFixed(2)}`)}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md"
                 >
                   Print Thermal Bill & Save

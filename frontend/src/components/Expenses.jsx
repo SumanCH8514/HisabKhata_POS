@@ -12,6 +12,7 @@ import {
   deleteExpense, 
   fmtCurrency 
 } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
@@ -158,9 +159,10 @@ export default function Expenses() {
         });
       }
       setShowModal(false);
+      toast.success(editingExpense ? 'Expense updated successfully' : 'Expense recorded successfully');
       loadExpenses();
     } catch (err) {
-      alert(err.message || 'Error saving expense');
+      toast.error(err.message || 'Error saving expense');
     } finally {
       setSubmitting(false);
     }
@@ -170,9 +172,10 @@ export default function Expenses() {
     if (!confirm('Are you sure you want to delete this expense record?')) return;
     try {
       await deleteExpense(id);
+      toast.success('Expense deleted successfully');
       loadExpenses();
     } catch (err) {
-      alert(err.message || 'Error deleting expense');
+      toast.error(err.message || 'Error deleting expense');
     }
   };
 

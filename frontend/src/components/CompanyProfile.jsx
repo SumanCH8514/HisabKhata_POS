@@ -7,6 +7,7 @@ import {
   Trash2, Plus, X, Sparkles, Check, Navigation, QrCode
 } from 'lucide-react';
 import { getCompany, updateCompany, uploadFile } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const COUNTRY_CODES = [
   { code: '+91', iso: 'in', name: 'India' },
@@ -341,9 +342,11 @@ export default function CompanyProfile() {
 
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 2500);
+      toast.success('Company profile updated successfully');
       window.dispatchEvent(new Event('company_profile_updated'));
     } catch (err) {
       setError(err.message || 'Failed to update company profile');
+      toast.error(err.message || 'Failed to update company profile');
     } finally {
       setSaving(false);
     }
@@ -822,7 +825,7 @@ export default function CompanyProfile() {
             <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => alert('Company deletion is disabled for data integrity safety.')}
+                onClick={() => toast.info('Company deletion is disabled for data integrity safety.')}
                 className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors cursor-pointer"
               >
                 Delete Company Data

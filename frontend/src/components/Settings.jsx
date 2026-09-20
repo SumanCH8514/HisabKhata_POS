@@ -15,6 +15,7 @@ import {
 import { getUserSettings, saveUserSettings, isBusinessGstRegistered } from '../api/client.js';
 import StaffManagement from './StaffManagement.jsx';
 import SmtpConfiguration from './SmtpConfiguration.jsx';
+import { toast } from '../utils/toast.js';
 
 function CustomSelect({ value, onChange, options = [], placeholder = 'Select Option', className = '' }) {
   const [open, setOpen] = useState(false);
@@ -398,9 +399,11 @@ export default function Settings() {
       await saveUserSettings(updatedSettings);
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 2500);
+      toast.success('Settings saved successfully');
     } catch {
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 2500);
+      toast.success('Settings saved locally');
     } finally {
       setSaving(false);
     }

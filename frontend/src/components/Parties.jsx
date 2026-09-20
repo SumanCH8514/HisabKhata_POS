@@ -13,6 +13,7 @@ import {
   getInvoices, getTransactions, createTransaction,
   deleteTransaction, deleteInvoice, fmtCurrency
 } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const WhatsAppIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -399,9 +400,10 @@ function PartyLedgerModal({ party, onClose, onRecordPayment, onEditParty }) {
         await deleteTransaction(entry.rawId);
       }
       window.dispatchEvent(new CustomEvent('hk:payment-updated'));
+      toast.success('Entry deleted successfully');
       loadLedger();
     } catch (err) {
-      alert(err.message || 'Failed to delete entry');
+      toast.error(err.message || 'Failed to delete entry');
     }
   };
 
@@ -1006,9 +1008,10 @@ export default function Parties() {
     if (!confirm('Delete this party? This will also remove their balance.')) return;
     try {
       await deleteParty(id);
+      toast.success('Party deleted successfully');
       load();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to delete party');
     }
   };
 

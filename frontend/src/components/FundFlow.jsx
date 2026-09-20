@@ -16,6 +16,7 @@ import {
   deleteFundTransaction, 
   fmtCurrency 
 } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 export default function FundFlow() {
   const [accounts, setAccounts] = useState([]);
@@ -169,9 +170,10 @@ export default function FundFlow() {
         });
       }
       setShowAccountModal(false);
+      toast.success(editingAccount ? 'Account updated successfully' : 'Account created successfully');
       loadData();
     } catch (err) {
-      alert(err.message || 'Error saving account');
+      toast.error(err.message || 'Error saving account');
     } finally {
       setSubmitting(false);
     }
@@ -185,9 +187,10 @@ export default function FundFlow() {
       if (selectedAccountId === String(acc.id)) {
         setSelectedAccountId('ALL');
       }
+      toast.success(`Account "${acc.name}" deleted`);
       loadData();
     } catch (err) {
-      alert(err.message || 'Error deleting account');
+      toast.error(err.message || 'Error deleting account');
     }
   };
 
@@ -201,6 +204,7 @@ export default function FundFlow() {
         amount: Number(txForm.amount)
       });
       setShowTxModal(false);
+      toast.success(`${txForm.direction === 'IN' ? 'Cash IN' : 'Cash OUT'} entry recorded`);
       setTxForm({
         account_id: accounts[0]?.id || '',
         amount: '',
@@ -210,7 +214,7 @@ export default function FundFlow() {
       });
       loadData();
     } catch (err) {
-      alert(err.message || 'Error recording transaction');
+      toast.error(err.message || 'Error recording transaction');
     } finally {
       setSubmitting(false);
     }
@@ -220,7 +224,7 @@ export default function FundFlow() {
     e.preventDefault();
     if (!transferForm.from_account_id || !transferForm.to_account_id || !transferForm.amount) return;
     if (transferForm.from_account_id === transferForm.to_account_id) {
-      alert('Source and destination accounts must be different');
+      toast.warning('Source and destination accounts must be different');
       return;
     }
     setSubmitting(true);
@@ -230,6 +234,7 @@ export default function FundFlow() {
         amount: Number(transferForm.amount)
       });
       setShowTransferModal(false);
+      toast.success('Funds transferred successfully');
       setTransferForm({
         from_account_id: '',
         to_account_id: '',
@@ -239,7 +244,7 @@ export default function FundFlow() {
       });
       loadData();
     } catch (err) {
-      alert(err.message || 'Error transferring funds');
+      toast.error(err.message || 'Error transferring funds');
     } finally {
       setSubmitting(false);
     }
@@ -249,9 +254,10 @@ export default function FundFlow() {
     if (!confirm(`Revert this ${tx.direction === 'IN' ? 'Cash IN' : 'Cash OUT'} entry of ${fmtCurrency(tx.amount)}? Account balance will be restored.`)) return;
     try {
       await deleteFundTransaction(tx.id);
+      toast.success('Transaction deleted and balance restored');
       loadData();
     } catch (err) {
-      alert(err.message || 'Error deleting transaction');
+      toast.error(err.message || 'Error deleting transaction');
     }
   };
 
@@ -285,7 +291,7 @@ export default function FundFlow() {
             <button
               onClick={() => {
                 if (accounts.length < 2) {
-                  alert('Please add at least 2 accounts to perform a fund transfer.');
+                  toast.warning('Please add at least 2 accounts to perform a fund transfer.');
                   return;
                 }
                 setTransferForm(prev => ({

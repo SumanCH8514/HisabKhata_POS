@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Save, Download, CloudUpload, ShieldCheck, Clock, FileJson, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { getBackups, exportBackup } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 export default function Backup() {
   const [backups, setBackups] = useState([]);
@@ -26,9 +27,10 @@ export default function Backup() {
     try {
       const res = await exportBackup();
       setSuccessMsg(`Backup created successfully: ${res.filename}`);
+      toast.success(`Backup created successfully: ${res.filename}`);
       loadData();
     } catch (err) {
-      alert(err.message || 'Error generating backup');
+      toast.error(err.message || 'Error generating backup');
     } finally {
       setExporting(false);
     }

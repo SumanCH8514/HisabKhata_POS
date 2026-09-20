@@ -17,6 +17,7 @@ import {
   getCompany,
   isBusinessGstRegistered
 } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const getLocalDateStr = (d = new Date()) => {
   const y = d.getFullYear();
@@ -261,7 +262,7 @@ export default function Reports() {
   };
 
   const exportSalesCsv = () => {
-    if (filteredSales.length === 0) return alert('No sales records to export');
+    if (filteredSales.length === 0) return toast.warning('No sales records to export');
     const headers = ['Invoice Number', 'Date', 'Customer Name', 'Taxable Subtotal (Rs)', 'GST Tax (Rs)', 'Grand Total (Rs)'];
     const rows = filteredSales.map(s => [
       `"${s.invoice_number || ''}"`,
@@ -272,10 +273,11 @@ export default function Reports() {
       s.total_amount || 0
     ]);
     downloadCsv(`Sales-Report-${getLocalDateStr(new Date())}.csv`, headers, rows);
+    toast.success('Sales report exported');
   };
 
   const exportGstCsv = () => {
-    if (filteredGst.length === 0) return alert('No GST records available to export.');
+    if (filteredGst.length === 0) return toast.warning('No GST records available to export.');
     const headers = ['Invoice Number', 'Date', 'Customer Name', 'Customer GSTIN', 'State', 'Taxable Amount (Rs)', 'GST Amount (Rs)', 'Total (Rs)'];
     const rows = filteredGst.map(r => [
       `"${r.invoice_number || ''}"`,
@@ -305,7 +307,7 @@ export default function Reports() {
   };
 
   const exportStockCsv = async () => {
-    if (itemsData.length === 0) return alert('No inventory items to export');
+    if (itemsData.length === 0) return toast.warning('No inventory items to export');
 
     const xlsxModule = await import('xlsx-js-style');
     const XLSX = xlsxModule.default || xlsxModule;
@@ -393,7 +395,7 @@ export default function Reports() {
   };
 
   const exportDayBookCsv = () => {
-    if (dayBookData.length === 0) return alert('No transactions found for this date');
+    if (dayBookData.length === 0) return toast.warning('No transactions found for this date');
     const headers = ['Entry Type', 'Reference', 'Category / Subtype', 'Date', 'Amount (Rs)'];
     const rows = dayBookData.map(d => [
       `"${d.entry_type || ''}"`,
@@ -403,6 +405,7 @@ export default function Reports() {
       d.amount || 0
     ]);
     downloadCsv(`DayBook-${dateFilter}.csv`, headers, rows);
+    toast.success('Day book exported');
   };
 
   const handlePrintReport = () => {

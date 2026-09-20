@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, fmtCurrency, fmt, getPosSettings, isBusinessGstRegistered } from '../api/client.js';
 import { getConnectedPrinter, printEscPosInvoice } from '../utils/bluetoothPrinter.js';
+import { toast } from '../utils/toast.js';
 
 const playScannerBeep = () => {
   try {
@@ -272,8 +273,9 @@ export default function POSBilling() {
         const cached = JSON.parse(localStorage.getItem('hk_pos_cached_parties') || '[]');
         localStorage.setItem('hk_pos_cached_parties', JSON.stringify([created, ...cached]));
       } catch { }
+      toast.success(`Customer "${created.name}" added successfully`);
     } catch (err) {
-      alert(err.message || 'Failed to quickly add customer');
+      toast.error(err.message || 'Failed to quickly add customer');
     } finally {
       setSavingCustomer(false);
     }
@@ -472,7 +474,7 @@ export default function POSBilling() {
 
     if (due > 0 && !selectedParty) {
       setShowPartySelect(true);
-      alert('Please select a customer to record the remaining due balance in Khata.');
+      toast.warning('Please select a customer to record the remaining due balance in Khata.');
       setSubmitting(false);
       return;
     }
@@ -527,6 +529,12 @@ export default function POSBilling() {
       setEmailInput(selectedParty?.email || '');
       setEmailSendStatus(null);
 
+      if (res.email_sent) {
+        toast.success(`Invoice #${invNo} created & receipt emailed to ${res.recipient_email}!`);
+      } else {
+        toast.success(`Invoice #${invNo} generated successfully!`);
+      }
+
       if (posCfg.autoPrintReceipt) {
         const printUrl = posCfg.preferredPrinter === 'LASER_A4'
           ? `/invoice/${res.invoice_id}/print`
@@ -540,7 +548,7 @@ export default function POSBilling() {
       setAmountPaid('');
       loadData();
     } catch (err) {
-      alert(err.message || 'Error processing checkout');
+      toast.error(err.message || 'Error processing checkout');
     } finally {
       setSubmitting(false);
     }
@@ -554,8 +562,9 @@ export default function POSBilling() {
         localStorage.getItem('userName') || 'HisabKhata POS',
         localStorage.getItem('app_currency') === 'USD' ? '$' : '₹'
       );
+      toast.success('Print dispatched to Bluetooth thermal printer');
     } catch (err) {
-      alert(err.message || 'Error printing via Bluetooth');
+      toast.error(err.message || 'Error printing via Bluetooth');
     }
   };
 

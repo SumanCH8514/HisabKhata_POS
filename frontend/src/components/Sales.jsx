@@ -9,6 +9,7 @@ import {
   Receipt, Hash, ChevronRight
 } from 'lucide-react';
 import { getInvoices, createInvoice, deleteInvoice, createTransaction, sendInvoiceReceipt, getParties, getItems, fmtCurrency, isBusinessGstRegistered, getActiveTaxRates, getDefaultTaxRate } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const WhatsAppIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -369,9 +370,10 @@ export default function Sales() {
     try {
       await deleteInvoice(id);
       window.dispatchEvent(new CustomEvent('hk:payment-updated'));
+      toast.success(`Invoice ${invNo || ''} deleted successfully`);
       loadData();
     } catch (err) {
-      alert(err.message || 'Failed to delete invoice');
+      toast.error(err.message || 'Failed to delete invoice');
     }
   };
 
@@ -470,7 +472,7 @@ export default function Sales() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.items || form.items.length === 0 || form.items.some(it => !it.item_name && !it.item_id)) {
-      alert('Please select or specify all item names');
+      toast.warning('Please select or specify all item names');
       return;
     }
     setSubmitting(true);
@@ -494,10 +496,12 @@ export default function Sales() {
       setShowModal(false);
       loadData();
       if (res?.email_sent) {
-        alert(`Invoice created and receipt emailed to ${res.recipient_email}!`);
+        toast.success(`Invoice created and receipt emailed to ${res.recipient_email}!`);
+      } else {
+        toast.success('Invoice created successfully!');
       }
     } catch (err) {
-      alert(err.message || 'Error creating invoice');
+      toast.error(err.message || 'Error creating invoice');
     } finally {
       setSubmitting(false);
     }
@@ -511,9 +515,9 @@ export default function Sales() {
     }
     try {
       const res = await sendInvoiceReceipt(inv.id, { email: target.trim() });
-      alert(res.message || `Receipt dispatched successfully to ${target.trim()}`);
+      toast.success(res.message || `Receipt dispatched successfully to ${target.trim()}`);
     } catch (err) {
-      alert(err.message || 'Failed to dispatch email receipt');
+      toast.error(err.message || 'Failed to dispatch email receipt');
     }
   };
 

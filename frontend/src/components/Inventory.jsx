@@ -15,6 +15,7 @@ import { getItems, createItem, updateItem, deleteItem, getCategories, createCate
   getBrands, createBrand, deleteBrand,
   getUnits, createUnit, deleteUnit, getUnitConversions, createUnitConversion, deleteUnitConversion,
   uploadFile, fmtCurrency, fmt, generateAIDescription, getPosSettings } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const UNITS   = ['Pcs', 'Mtr', 'Kg', 'Ltr', 'Box', 'Pair', 'Set', 'Roll'];
 const getActiveTaxRates = () => {
@@ -2417,7 +2418,7 @@ export default function Inventory() {
       : items;
 
     if (listToExport.length === 0 && exportType !== 'template') {
-      alert('No items available to export.');
+      toast.warning('No items available to export.');
       return;
     }
 

@@ -26,11 +26,13 @@ import JoinInvite from './components/JoinInvite.jsx';
 import VerifyEmail from './components/VerifyEmail.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
 import AboutProject from './components/AboutProject.jsx';
+import { ToastProvider } from './context/ToastContext.jsx';
 
 export default function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Routes>
+    <ToastProvider>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Auth />} />
         <Route path="/signup" element={<Auth defaultIsLogin={false} />} />
@@ -67,5 +69,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }

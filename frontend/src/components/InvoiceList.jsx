@@ -4,6 +4,7 @@ import {
   FileText, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, X, Trash2,
 } from 'lucide-react';
 import { getInvoices, getInvoice, deleteInvoice, fmtCurrency } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const TYPE_BADGE = {
   SALES:     'badge-green',
@@ -147,9 +148,10 @@ export default function InvoiceList() {
     if (!window.confirm(`Are you sure you want to delete invoice ${invNo || ''}? This will revert stock and Khata ledger balance.`)) return;
     try {
       await deleteInvoice(id);
+      toast.success(`Invoice ${invNo || ''} deleted`);
       load();
     } catch (err) {
-      alert(err.message || 'Failed to delete invoice');
+      toast.error(err.message || 'Failed to delete invoice');
     }
   };
 

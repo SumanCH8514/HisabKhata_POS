@@ -6,6 +6,7 @@ import {
   Tag, Download, ArrowRight, DollarSign, Percent, ChevronDown, Search
 } from 'lucide-react';
 import { getItems, getUnits, getUnitConversions, createUnitConversion, deleteUnitConversion, getCompany, fmtCurrency } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 const CODE128_PATTERNS = [
   "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
@@ -361,9 +362,10 @@ export default function ExtraTools() {
         rate: Number(convRate)
       });
       setConvRate(1);
+      toast.success('Unit conversion created successfully');
       loadData();
     } catch (err) {
-      alert(err.message || 'Error creating unit conversion');
+      toast.error(err.message || 'Error creating unit conversion');
     }
   };
 

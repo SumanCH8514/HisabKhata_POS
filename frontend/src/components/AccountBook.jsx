@@ -15,6 +15,7 @@ import {
   createTransaction, 
   fmtCurrency 
 } from '../api/client.js';
+import { toast } from '../utils/toast.js';
 
 function WhatsAppIcon({ size = 16, className = '' }) {
   return (
@@ -294,9 +295,10 @@ export default function AccountBook() {
         amount: Number(paymentForm.amount)
       });
       setShowPaymentModal(false);
+      toast.success('Payment recorded successfully');
       loadData();
     } catch (err) {
-      alert(err.message || 'Error recording payment');
+      toast.error(err.message || 'Error recording payment');
     } finally {
       setSubmittingPayment(false);
     }

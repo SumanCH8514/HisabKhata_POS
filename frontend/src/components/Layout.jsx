@@ -18,6 +18,7 @@ import {
   disconnectBluetoothPrinter,
   printTestReceipt
 } from '../utils/bluetoothPrinter.js';
+import { toast } from '../utils/toast.js';
 
 import logoDark from '../assets/logo_dark_mode.png';
 
@@ -217,7 +218,7 @@ export default function Layout() {
         window.location.reload();
       }
     } catch (err) {
-      alert(err.message || 'Failed to accept invitation');
+      toast.error(err.message || 'Failed to accept invitation');
     }
   };
 
@@ -225,8 +226,9 @@ export default function Layout() {
     try {
       await respondToInvitation({ token, action: 'reject' });
       setPendingInvites(prev => prev.filter(inv => inv.token !== token));
+      toast.info('Invitation declined');
     } catch (err) {
-      alert(err.message || 'Failed to decline invitation');
+      toast.error(err.message || 'Failed to decline invitation');
     }
   };
 
