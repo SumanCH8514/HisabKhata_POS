@@ -26,11 +26,36 @@ import JoinInvite from './components/JoinInvite.jsx';
 import VerifyEmail from './components/VerifyEmail.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
 import AboutProject from './components/AboutProject.jsx';
-import { ToastProvider } from './context/ToastContext.jsx';
+import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   return (
-    <ToastProvider>
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          className: 'dark:!bg-slate-900 dark:!text-slate-100 dark:!border-slate-800 !border !border-slate-200 !text-slate-900 !shadow-xl !rounded-2xl !px-4 !py-3 !text-sm !font-medium',
+          duration: 4000,
+          style: {
+            borderRadius: '16px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
+          },
+          success: {
+            duration: 3500,
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#ffffff'
+            }
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#f43f5e',
+              secondary: '#ffffff'
+            }
+          }
+        }}
+      />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -69,6 +94,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
-    </ToastProvider>
+    </>
   );
 }

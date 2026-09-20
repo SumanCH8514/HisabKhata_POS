@@ -1,35 +1,44 @@
-// Toast event-based singleton emitter
-const listeners = new Set();
+import rawToast from 'react-hot-toast';
+export { Toaster } from 'react-hot-toast';
 
-export const toast = (message, options = {}) => {
-  const id = options.id || Math.random().toString(36).substring(2, 9);
-  const toastItem = {
-    id,
-    message,
-    type: options.type || 'info',
-    duration: options.duration !== undefined ? options.duration : 4000,
-    title: options.title || null,
-    action: options.action || null,
-    ...options
+export const toast = rawToast;
+
+if (!toast.warning) {
+  toast.warning = (message, options = {}) => {
+    return rawToast(message, {
+      icon: '⚠️',
+      duration: options.duration || 4000,
+      style: {
+        border: '1px solid #f59e0b',
+        color: '#b45309',
+        ...options.style
+      },
+      ...options
+    });
   };
+}
 
-  listeners.forEach(fn => fn({ action: 'show', toast: toastItem }));
-  return id;
-};
-
-toast.success = (message, options = {}) => toast(message, { ...options, type: 'success' });
-toast.error = (message, options = {}) => toast(message, { ...options, type: 'error', duration: options.duration || 5000 });
-toast.warning = (message, options = {}) => toast(message, { ...options, type: 'warning' });
-toast.info = (message, options = {}) => toast(message, { ...options, type: 'info' });
-toast.dismiss = (id) => {
-  listeners.forEach(fn => fn({ action: 'dismiss', id }));
-};
-
-export const subscribeToast = (callback) => {
-  listeners.add(callback);
-  return () => {
-    listeners.delete(callback);
+if (!toast.info) {
+  toast.info = (message, options = {}) => {
+    return rawToast(message, {
+      icon: 'ℹ️',
+      duration: options.duration || 4000,
+      ...options
+    });
   };
-};
+}
+
+if (typeof window !== 'undefined' && !window.__alert_toasted) {
+  window.__alert_toasted = true;
+  const originalAlert = window.alert;
+  window.alert = (msg) => {
+    const text = typeof msg === 'string' ? msg : JSON.stringify(msg);
+    if (/error|fail|invalid|unable|required/i.test(text)) {
+      toast.error(text);
+    } else {
+      toast(text);
+    }
+  };
+}
 
 export default toast;
