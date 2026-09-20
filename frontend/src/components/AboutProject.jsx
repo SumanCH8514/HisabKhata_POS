@@ -136,71 +136,72 @@ export default function AboutProject() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070b14] text-slate-800 dark:text-slate-100 p-3.5 sm:p-6 lg:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#070b14] text-slate-800 dark:text-slate-100 p-2.5 sm:p-6 lg:p-8">
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
 
         {/* Top Navigation Bar */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer shrink-0"
           >
             <ArrowLeft size={15} />
-            <span>Back to Dashboard</span>
+            <span className="hidden sm:inline">Back to Dashboard</span>
+            <span className="sm:hidden">Back</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <a
               href="https://github.com/SumanCH8514/HisabKhata_POS"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all shadow-2xs"
             >
-              <ExternalLink size={14} />
-              <span className="hidden sm:inline">GitHub Repository</span>
-              <span className="sm:hidden">GitHub</span>
+              <ExternalLink size={13} />
+              <span>GitHub</span>
             </a>
 
             <a
               href="https://wa.me/918918153949?text=HisabKhata%20POS%20Inquiry"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs shrink-0"
             >
-              <MessageCircle size={14} />
-              <span>Contact Developer</span>
+              <MessageCircle size={13} />
+              <span className="hidden sm:inline">Contact Developer</span>
+              <span className="sm:hidden">Support</span>
             </a>
           </div>
         </div>
 
         {/* Hero Banner */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 text-white p-6 sm:p-8 lg:p-10 border border-slate-800 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 text-white p-4 sm:p-8 lg:p-10 border border-slate-800 shadow-xl">
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <div className="flex items-center gap-4 sm:gap-5">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 p-2.5 flex items-center justify-center shadow-lg shrink-0">
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+            <div className="flex items-center gap-3.5 sm:gap-5">
+              <div className="w-13 h-13 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2 flex items-center justify-center shadow-lg shrink-0">
                 <img
                   src={theme === 'light' ? logoLight : logoDark}
                   alt="HisabKhata POS Logo"
-                  className="w-full h-full object-contain mix-blend-screen"
+                  className="w-full h-full object-contain"
                 />
               </div>
 
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                  <h1 className="text-xl sm:text-3xl font-black tracking-tight text-white leading-tight">
                     HisabKhata POS
                   </h1>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     {APP_VERSION}
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1 max-w-xl">
-                  Enterprise GST Billing, Multi-Unit Inventory & Point-of-Sale System engineered for modern retail, wholesale, and multi-user businesses.
+                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1 max-w-xl leading-relaxed">
+                  Enterprise GST Billing, Multi-Unit Inventory & Point-of-Sale System engineered for retail, wholesale, and multi-user businesses.
                 </p>
               </div>
             </div>
@@ -208,7 +209,7 @@ export default function AboutProject() {
             <button
               type="button"
               onClick={handleCopyVersion}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-bold text-white transition-all cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-white transition-all cursor-pointer shrink-0"
               title="Click to copy full version string"
             >
               {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
@@ -216,79 +217,84 @@ export default function AboutProject() {
             </button>
           </div>
 
-          <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-8 pt-6 border-t border-white/10">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Release Version</p>
-              <p className="text-sm sm:text-base font-extrabold text-white mt-0.5">{APP_VERSION}</p>
+          <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 mt-5 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10">
+            <div className="bg-white/5 sm:bg-transparent rounded-xl p-2.5 sm:p-0 border border-white/5 sm:border-0">
+              <p className="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Release Version</p>
+              <p className="text-xs sm:text-base font-extrabold text-white mt-0.5">{APP_VERSION}</p>
             </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Build Channel</p>
-              <p className="text-sm sm:text-base font-extrabold text-emerald-400 mt-0.5">Production Stable</p>
+            <div className="bg-white/5 sm:bg-transparent rounded-xl p-2.5 sm:p-0 border border-white/5 sm:border-0">
+              <p className="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Build Channel</p>
+              <p className="text-xs sm:text-base font-extrabold text-emerald-400 mt-0.5">Production Stable</p>
             </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Release Date</p>
-              <p className="text-sm sm:text-base font-extrabold text-white mt-0.5">{RELEASE_DATE}</p>
+            <div className="bg-white/5 sm:bg-transparent rounded-xl p-2.5 sm:p-0 border border-white/5 sm:border-0">
+              <p className="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Release Date</p>
+              <p className="text-xs sm:text-base font-extrabold text-white mt-0.5">{RELEASE_DATE}</p>
             </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">System Uptime</p>
-              <p className="text-sm sm:text-base font-extrabold text-teal-300 mt-0.5">100% Edge Powered</p>
+            <div className="bg-white/5 sm:bg-transparent rounded-xl p-2.5 sm:p-0 border border-white/5 sm:border-0">
+              <p className="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">System Uptime</p>
+              <p className="text-xs sm:text-base font-extrabold text-teal-300 mt-0.5">100% Edge Powered</p>
             </div>
           </div>
         </div>
 
         {/* Architecture & Stack Badges */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-            <div className="flex items-center gap-2.5 text-blue-600 dark:text-blue-400 font-bold text-xs uppercase tracking-wider">
-              <Cpu size={16} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xs uppercase tracking-wider">
+              <Cpu size={15} />
               <span>Frontend Architecture</span>
             </div>
-            <p className="text-base font-bold text-slate-800 dark:text-white">React 18 + Vite + Tailwind</p>
+            <p className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">React 18 + Vite + Tailwind</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Ultra-responsive Single Page Application, Web Bluetooth ESC/POS thermal printing, and camera WebP capture.
+              Single Page Application, Web Bluetooth ESC/POS thermal printing, and native camera WebP capture.
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-            <div className="flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
-              <Cloud size={16} />
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
+              <Cloud size={15} />
               <span>Edge API Gateway</span>
             </div>
-            <p className="text-base font-bold text-slate-800 dark:text-white">Cloudflare Worker + Hono.js</p>
+            <p className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">Cloudflare Worker + Hono.js</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Global serverless V8 execution running on SumanOnline Edge with sub-20ms API response latency across India.
+              Global serverless V8 execution on SumanOnline Edge with sub-20ms API response latency across India.
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-            <div className="flex items-center gap-2.5 text-purple-600 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
-              <Database size={16} />
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
+              <Database size={15} />
               <span>Database & Storage</span>
             </div>
-            <p className="text-base font-bold text-slate-800 dark:text-white">Cloudflare D1 & R2 Storage</p>
+            <p className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">Cloudflare D1 & R2 Storage</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              ACID-compliant serverless SQLite database with automatic backups and cloud object storage for invoice receipts and logos.
+              Serverless SQLite database with automatic backups and cloud object storage for invoice receipts and logos.
             </p>
           </div>
         </div>
 
         {/* Release Changelog Section */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-7 shadow-xs space-y-4 sm:space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <GitCommit size={20} className="text-emerald-600 dark:text-emerald-400" />
-                Release History & Official Changelog
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Detailed version release notes, newly shipped features, and security enhancements
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <GitCommit size={16} />
+                </div>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  Release History & Changelog
+                </h2>
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 pl-9 sm:pl-0">
+                Detailed version release notes and feature highlights
               </p>
             </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-1 sm:pt-0">
               <button
                 type="button"
                 onClick={toggleAll}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer select-none"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer select-none"
               >
                 {allExpanded ? (
                   <>
@@ -302,13 +308,13 @@ export default function AboutProject() {
                   </>
                 )}
               </button>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                 Current: <strong>{APP_VERSION}</strong>
               </span>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3.5 sm:space-y-4">
             {CHANGELOG.map((rel) => {
               const isExpanded = !!expandedVersions[rel.version];
               return (
@@ -324,42 +330,43 @@ export default function AboutProject() {
                   <button
                     type="button"
                     onClick={() => toggleVersion(rel.version)}
-                    className={`w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 text-left transition-colors cursor-pointer select-none ${
+                    className={`w-full text-left transition-colors cursor-pointer select-none p-3.5 sm:p-5 ${
                       isExpanded
-                        ? 'border-b border-slate-200/60 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40'
+                        ? 'border-b border-slate-200/60 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50'
                         : 'hover:bg-white/80 dark:hover:bg-slate-800/40'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className={`text-sm sm:text-base font-black px-2.5 py-0.5 rounded-lg border shrink-0 ${
-                        rel.current
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                          : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
-                      }`}>
-                        {rel.version}
-                      </span>
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
-                        {rel.title}
-                      </h3>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500 dark:text-slate-400 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs">
-                          <Calendar size={13} />
-                          {rel.date}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <span className={`text-xs sm:text-sm font-black px-2 py-0.5 rounded-md border shrink-0 mt-0.5 ${
+                          rel.current
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
+                        }`}>
+                          {rel.version}
                         </span>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hidden sm:inline-block">
-                          {rel.status}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200/80 dark:border-slate-700">
-                          {rel.highlights.length} updates
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-xs sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                            {rel.title}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5 text-[10.5px] sm:text-xs text-slate-500 dark:text-slate-400">
+                            <span className="inline-flex items-center gap-1 font-medium">
+                              <Calendar size={12} />
+                              {rel.date}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {rel.status}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              {rel.highlights.length} updates
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 mt-0.5 transition-all ${
                         isExpanded
-                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                           : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
                       }`}>
                         <ChevronDown
@@ -372,22 +379,22 @@ export default function AboutProject() {
 
                   {/* Expandable Content Area */}
                   {isExpanded && (
-                    <div className="p-4 sm:p-6 animate-fade-in">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <div className="p-3 sm:p-5 pt-3 sm:pt-4 animate-fade-in">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3.5">
                         {rel.highlights.map((item, idx) => (
                           <div
                             key={idx}
-                            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1.5"
+                            className="p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-1.5"
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                                {item.title}
-                              </h4>
-                              <span className={`text-[9.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${item.tagColor}`}>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className={`text-[9px] sm:text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded border inline-block ${item.tagColor}`}>
                                 {item.tag}
                               </span>
                             </div>
-                            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                              {item.title}
+                            </h4>
+                            <p className="text-[11px] sm:text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed">
                               {item.description}
                             </p>
                           </div>
@@ -402,40 +409,40 @@ export default function AboutProject() {
         </div>
 
         {/* Diagnostics & Client Environment */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xs space-y-3 sm:space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Terminal size={14} />
             Client Environment & Runtime Diagnostics
           </h3>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between sm:block">
               <span className="text-slate-400 block text-[10px] font-bold">Network Connection</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 mt-0.5">
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 sm:mt-0.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 {systemInfo.online ? 'Online' : 'Offline Mode'}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between sm:block">
               <span className="text-slate-400 block text-[10px] font-bold">Web Bluetooth API</span>
-              <span className={`font-bold inline-flex items-center gap-1 mt-0.5 ${
+              <span className={`font-bold inline-flex items-center gap-1 sm:mt-0.5 ${
                 systemInfo.bluetooth ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
               }`}>
                 {systemInfo.bluetooth ? 'Hardware Supported' : 'Standard Web Driver'}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between sm:block">
               <span className="text-slate-400 block text-[10px] font-bold">Screen Viewport</span>
-              <span className="font-bold text-slate-700 dark:text-slate-300 block mt-0.5">
+              <span className="font-bold text-slate-700 dark:text-slate-300 block sm:mt-0.5">
                 {systemInfo.screen}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-center">
               <span className="text-slate-400 block text-[10px] font-bold">Production Domain</span>
-              <span className="font-bold text-slate-700 dark:text-slate-300 block mt-0.5 truncate">
+              <span className="font-bold text-slate-700 dark:text-slate-300 block mt-0.5 truncate text-[11px] sm:text-xs" title="pos.hisabkhata.sumanonline.com">
                 pos.hisabkhata.sumanonline.com
               </span>
             </div>
