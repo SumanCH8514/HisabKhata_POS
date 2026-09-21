@@ -1,15 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Plus, Trash2, Search, Printer,
   User, Package, Check, RefreshCw, X, ArrowRight,
   CreditCard, Smartphone, Banknote, Clock, Bookmark,
   ChevronRight, ChevronUp, ChevronDown, Minus, AlertCircle, Sparkles, Bluetooth, Zap,
-  Maximize2, Minimize2, ScanLine, Camera, UserPlus, Phone, Wallet, MapPin, Mail, Send
+  Maximize2, Minimize2, ScanLine, Camera, UserPlus, Phone, Wallet, MapPin, Mail, Send, Eye
 } from 'lucide-react';
 import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, fmtCurrency, fmt, getPosSettings, isBusinessGstRegistered } from '../api/client.js';
 import { getConnectedPrinter, printEscPosInvoice } from '../utils/bluetoothPrinter.js';
 import { toast } from '../utils/toast.js';
+import BarcodeScannerModal from './BarcodeScannerModal';
 
 const playScannerBeep = () => {
   try {
@@ -747,6 +749,24 @@ export default function POSBilling() {
                 className="bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md rounded-lg text-left transition-all flex flex-col overflow-hidden group cursor-pointer relative max-lg:select-none max-lg:touch-manipulation min-h-[118px] shrink-0"
               >
                 <div className="relative w-full h-[72px] bg-white overflow-hidden shrink-0 border-b border-slate-100">
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMobileDetailItem(item);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        setMobileDetailItem(item);
+                      }
+                    }}
+                    title="View item details"
+                    className="absolute top-1 left-1 w-5 h-5 rounded-md bg-white/90 hover:bg-white text-slate-500 hover:text-emerald-700 shadow-xs border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer z-10 sm:hidden active:scale-90"
+                  >
+                    <Eye size={11} strokeWidth={2.2} />
+                  </span>
                   {item.image_url ? (
                     <img
                       src={item.image_url}
@@ -1502,10 +1522,13 @@ export default function POSBilling() {
       )}
 
       {showBarcodeScanner && (
-        <BarcodeScanModal
+        <BarcodeScannerModal
           onClose={() => setShowBarcodeScanner(false)}
           onDetected={handleBarcodeScannedInPos}
+          continuous
           cartLength={cart.length}
+          title="Continuous Barcode Scanner"
+          subtitle="Keep scanning products — items add to cart instantly"
         />
       )}
 
@@ -1515,6 +1538,7 @@ export default function POSBilling() {
           onClose={() => setMobileDetailItem(null)}
           onAddToCart={handleAddToCart}
           fmtCurrency={fmtCurrency}
+          isRegistered={isRegistered}
         />
       )}
 
@@ -1522,195 +1546,7 @@ export default function POSBilling() {
   );
 }
 
-function BarcodeScanModal({ onClose, onDetected, cartLength = 0 }) {
-  const videoRef = React.useRef(null);
-  const [error, setError] = useState(null);
-  const [manualCode, setManualCode] = useState('');
-  const [lastScanResult, setLastScanResult] = useState(null);
-  const streamRef = React.useRef(null);
-  const intervalRef = React.useRef(null);
-  const lastScannedTimeRef = React.useRef({});
 
-  useEffect(() => {
-    let active = true;
-
-    async function startCamera() {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('Camera not supported on this device/browser');
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        if (!active) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => { });
-        }
-
-        if ('BarcodeDetector' in window) {
-          try {
-            const barcodeDetector = new window.BarcodeDetector({
-              formats: ['code_128', 'ean_13', 'ean_8', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'data_matrix']
-            });
-            intervalRef.current = setInterval(async () => {
-              if (videoRef.current && videoRef.current.readyState >= 2 && active) {
-                try {
-                  const barcodes = await barcodeDetector.detect(videoRef.current);
-                  if (barcodes && barcodes.length > 0) {
-                    const raw = barcodes[0].rawValue;
-                    if (raw && active) {
-                      const now = Date.now();
-                      const lastTime = lastScannedTimeRef.current[raw] || 0;
-                      if (now - lastTime > 1500) {
-                        lastScannedTimeRef.current[raw] = now;
-                        const res = onDetected(raw);
-                        setLastScanResult(res);
-                        setTimeout(() => setLastScanResult(null), 2500);
-                      }
-                    }
-                  }
-                } catch { }
-              }
-            }, 250);
-          } catch { }
-        }
-      } catch (err) {
-        if (active) setError(err.message || 'Unable to access camera');
-      }
-    }
-
-    startCamera();
-
-    return () => {
-      active = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, [onDetected]);
-
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (manualCode.trim()) {
-      const res = onDetected(manualCode.trim());
-      setLastScanResult(res);
-      setManualCode('');
-      setTimeout(() => setLastScanResult(null), 2500);
-    }
-  };
-
-  return (
-    <div className="modal-overlay p-2 sm:p-4 fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs" onClick={e => e.target === e.currentTarget && onClose()}>
-      
-      {lastScanResult && (
-        <div className="fixed top-4 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-60 animate-fade-in pointer-events-none">
-          {lastScanResult.success ? (
-            <div className="bg-emerald-600 text-white px-3.5 py-2 rounded-2xl shadow-2xl flex items-center justify-between text-xs font-black border border-emerald-400/80 backdrop-blur-md">
-              <div className="flex items-center gap-2 truncate">
-                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                  <Check size={13} strokeWidth={3} className="text-white" />
-                </div>
-                <span className="truncate">Added: {lastScanResult.item?.name}</span>
-              </div>
-              <span className="shrink-0 bg-white/25 px-2 py-0.5 rounded-full text-[10px] font-bold ml-2">
-                +1 in Cart
-              </span>
-            </div>
-          ) : (
-            <div className="bg-rose-600 text-white px-3.5 py-2 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-black border border-rose-400/80 backdrop-blur-md">
-              <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                <AlertCircle size={13} strokeWidth={3} className="text-white" />
-              </div>
-              <span className="truncate">No product found for "{lastScanResult.code}"</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="modal-panel max-w-md w-full bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-2xl overflow-hidden animate-fade-in flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
-              <ScanLine size={16} strokeWidth={2} />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">Continuous Barcode Scanner</h3>
-              <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium truncate">Keep scanning products — items add to cart instantly</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 cursor-pointer shrink-0">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3.5 overflow-y-auto">
-          <div className="relative w-full aspect-16/10 sm:aspect-4/3 max-h-[30vh] sm:max-h-[36vh] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center shadow-inner">
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-            <div className="absolute inset-0 border-2 border-emerald-500/70 m-3 sm:m-6 rounded-xl pointer-events-none flex flex-col justify-between p-1.5 sm:p-2">
-              <div className="flex justify-between">
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-t-2 border-l-2 border-emerald-400" />
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-t-2 border-r-2 border-emerald-400" />
-              </div>
-              <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
-              <div className="flex justify-between">
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-b-2 border-l-2 border-emerald-400" />
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-b-2 border-r-2 border-emerald-400" />
-              </div>
-            </div>
-
-            {error && (
-              <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-3 text-center">
-                <Camera size={26} className="text-slate-400 mb-1.5" />
-                <p className="text-xs font-bold text-white mb-0.5">Camera Not Available</p>
-                <p className="text-[10px] text-slate-300 max-w-[220px] mb-2">{error}</p>
-                <p className="text-[9px] text-emerald-400 font-semibold">Enter barcode manually below</p>
-              </div>
-            )}
-          </div>
-
-          <form onSubmit={handleManualSubmit} className="flex gap-1.5 sm:gap-2">
-            <input
-              type="text"
-              className="flex-1 px-2.5 py-1.5 sm:py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white"
-              placeholder="Or type barcode here..."
-              value={manualCode}
-              onChange={e => setManualCode(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={!manualCode.trim()}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
-            >
-              Add
-            </button>
-          </form>
-        </div>
-
-        <div className="px-3.5 py-2.5 sm:px-5 sm:py-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-[11px] sm:text-xs text-slate-500 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <ShoppingCart size={13} className="text-emerald-600" />
-            <span className="font-bold text-slate-800">
-              Cart: {cartLength} {cartLength === 1 ? 'item' : 'items'}
-            </span>
-          </div>
-          <button 
-            type="button"
-            onClick={onClose} 
-            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs cursor-pointer transition-colors shadow-xs"
-          >
-            Done Scanning
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ItemHoverPopup({ item, pos, fmtCurrency }) {
   const popupRef = React.useRef(null);
@@ -1823,9 +1659,13 @@ function ItemHoverPopup({ item, pos, fmtCurrency }) {
   );
 }
 
-function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency }) {
+function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency, isRegistered = false }) {
   const [qty, setQty] = useState(1);
   if (!item) return null;
+
+  const isGstRegistered = Boolean(
+    isRegistered ?? (typeof isBusinessGstRegistered === 'function' && isBusinessGstRegistered())
+  );
 
   const handleAdd = () => {
     onAddToCart(item, qty);
@@ -1836,9 +1676,9 @@ function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency }) {
     ? Math.round(((item.mrp - item.sale_price) / item.mrp) * 100) 
     : 0;
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-xs p-0 sm:p-4 animate-fade-in select-none"
+      className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-xs p-0 sm:p-4 animate-fade-in select-none"
       onContextMenu={(e) => e.preventDefault()}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -1918,7 +1758,7 @@ function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency }) {
                   {discountPercent}% OFF
                 </span>
               )}
-              {isRegistered && item.tax_rate > 0 && (
+              {isGstRegistered && item.tax_rate > 0 && (
                 <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 ml-auto">
                   GST {item.tax_rate}%
                 </span>
@@ -2021,4 +1861,9 @@ function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency }) {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : modalContent;
 }
+

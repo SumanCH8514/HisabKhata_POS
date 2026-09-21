@@ -17,6 +17,7 @@ import { getItems, createItem, updateItem, deleteItem, getCategories, createCate
   uploadFile, fmtCurrency, fmt, generateAIDescription, getPosSettings,
   isBusinessGstRegistered, getActiveTaxRates, getDefaultTaxRate } from '../api/client.js';
 import { toast } from '../utils/toast.js';
+import BarcodeScannerModal from './BarcodeScannerModal';
 
 const UNITS   = ['Pcs', 'Mtr', 'Kg', 'Ltr', 'Box', 'Pair', 'Set', 'Roll'];
 
@@ -1521,7 +1522,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
       )}
 
       {showBarcodeScanner && (
-        <BarcodeScanModal
+        <BarcodeScannerModal
           onClose={() => setShowBarcodeScanner(false)}
           onDetected={(scanned) => {
             set('barcode', scanned);
@@ -1536,149 +1537,6 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }
 
-function BarcodeScanModal({ onClose, onDetected }) {
-  const videoRef = React.useRef(null);
-  const [error, setError] = useState(null);
-  const [manualCode, setManualCode] = useState('');
-  const streamRef = React.useRef(null);
-  const intervalRef = React.useRef(null);
-
-  useEffect(() => {
-    let active = true;
-
-    async function startCamera() {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('Camera not supported on this device/browser');
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        if (!active) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-        }
-
-        if ('BarcodeDetector' in window) {
-          try {
-            const barcodeDetector = new window.BarcodeDetector({
-              formats: ['code_128', 'ean_13', 'ean_8', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'data_matrix']
-            });
-            intervalRef.current = setInterval(async () => {
-              if (videoRef.current && videoRef.current.readyState >= 2 && active) {
-                try {
-                  const barcodes = await barcodeDetector.detect(videoRef.current);
-                  if (barcodes && barcodes.length > 0) {
-                    const raw = barcodes[0].rawValue;
-                    if (raw && active) {
-                      active = false;
-                      onDetected(raw);
-                    }
-                  }
-                } catch {}
-              }
-            }, 250);
-          } catch {}
-        }
-      } catch (err) {
-        if (active) setError(err.message || 'Unable to access camera');
-      }
-    }
-
-    startCamera();
-
-    return () => {
-      active = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, [onDetected]);
-
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (manualCode.trim()) {
-      onDetected(manualCode.trim());
-    }
-  };
-
-  return (
-    <div className="modal-overlay p-2 sm:p-4 fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-panel max-w-md w-full bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-2xl overflow-hidden animate-fade-in flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
-              <ScanLine size={16} strokeWidth={2} />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">Scan Product Barcode</h3>
-              <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium truncate">Align barcode inside the camera frame</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 cursor-pointer shrink-0">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3.5 overflow-y-auto">
-          <div className="relative w-full aspect-16/10 sm:aspect-4/3 max-h-[30vh] sm:max-h-[36vh] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center shadow-inner">
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-            <div className="absolute inset-0 border-2 border-emerald-500/70 m-3 sm:m-6 rounded-xl pointer-events-none flex flex-col justify-between p-1.5 sm:p-2">
-              <div className="flex justify-between">
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-t-2 border-l-2 border-emerald-400" />
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-t-2 border-r-2 border-emerald-400" />
-              </div>
-              <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
-              <div className="flex justify-between">
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-b-2 border-l-2 border-emerald-400" />
-                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-b-2 border-r-2 border-emerald-400" />
-              </div>
-            </div>
-            {error && (
-              <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-3 text-center">
-                <Camera size={26} className="text-slate-400 mb-1.5" />
-                <p className="text-xs font-bold text-white mb-0.5">Camera Not Available</p>
-                <p className="text-[10px] text-slate-300 max-w-[220px] mb-2">{error}</p>
-                <p className="text-[9px] text-emerald-400 font-semibold">Enter barcode manually below</p>
-              </div>
-            )}
-          </div>
-
-          <form onSubmit={handleManualSubmit} className="flex gap-1.5 sm:gap-2">
-            <input
-              type="text"
-              autoFocus
-              className="flex-1 px-2.5 py-1.5 sm:py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white"
-              placeholder="Or type barcode here..."
-              value={manualCode}
-              onChange={e => setManualCode(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={!manualCode.trim()}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
-            >
-              Use
-            </button>
-          </form>
-        </div>
-
-        <div className="px-3.5 py-2 sm:px-5 sm:py-2.5 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-[10px] sm:text-[11px] text-slate-500 shrink-0">
-          <span className="truncate pr-2">USB Scanners can also scan directly</span>
-          <button onClick={onClose} className="px-2 py-0.5 bg-slate-200/70 hover:bg-slate-200 text-slate-700 font-bold rounded text-xs cursor-pointer transition-colors shrink-0">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function AddSubCategoryModal({ categories, defaultCategoryId, onClose, onSave }) {
   const [categoryId, setCategoryId] = useState(defaultCategoryId || (categories[0]?.id || ''));
