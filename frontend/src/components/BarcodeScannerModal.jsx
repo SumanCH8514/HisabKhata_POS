@@ -75,13 +75,38 @@ export default function BarcodeScannerModal({
   continuous = false,
   cartLength = 0,
   title = 'Scan Product Barcode',
-  subtitle = 'Align barcode inside the camera frame'
+  subtitle = 'Align barcode inside the camera frame',
+  container = null
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
   const lastScannedTimeRef = useRef({});
+
+  const [targetNode, setTargetNode] = useState(() => (
+    container ||
+    (typeof document !== 'undefined'
+      ? (document.fullscreenElement || document.webkitFullscreenElement || document.body)
+      : null)
+  ));
+
+  useEffect(() => {
+    if (container) {
+      setTargetNode(container);
+      return;
+    }
+    const handleFs = () => {
+      const el = document.fullscreenElement || document.webkitFullscreenElement || document.body;
+      setTargetNode(el);
+    };
+    document.addEventListener('fullscreenchange', handleFs);
+    document.addEventListener('webkitfullscreenchange', handleFs);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFs);
+      document.removeEventListener('webkitfullscreenchange', handleFs);
+    };
+  }, [container]);
 
   const [error, setError] = useState(null);
   const [manualCode, setManualCode] = useState('');
@@ -533,7 +558,6 @@ export default function BarcodeScannerModal({
               <Keyboard size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                autoFocus
                 className="w-full pl-8 pr-2.5 py-1.5 sm:py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white text-slate-900 transition-colors"
                 placeholder="Or type barcode (e.g. 7000000491)..."
                 value={manualCode}
@@ -568,7 +592,5 @@ export default function BarcodeScannerModal({
     </div>
   );
 
-  return typeof document !== 'undefined'
-    ? createPortal(modalContent, document.body)
-    : modalContent;
+  return targetNode ? createPortal(modalContent, targetNode) : modalContent;
 }

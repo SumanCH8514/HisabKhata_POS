@@ -1529,6 +1529,7 @@ export default function POSBilling() {
           cartLength={cart.length}
           title="Continuous Barcode Scanner"
           subtitle="Keep scanning products — items add to cart instantly"
+          container={containerRef.current}
         />
       )}
 
@@ -1539,6 +1540,7 @@ export default function POSBilling() {
           onAddToCart={handleAddToCart}
           fmtCurrency={fmtCurrency}
           isRegistered={isRegistered}
+          container={containerRef.current}
         />
       )}
 
@@ -1659,7 +1661,7 @@ function ItemHoverPopup({ item, pos, fmtCurrency }) {
   );
 }
 
-function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency, isRegistered = false }) {
+function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency, isRegistered = false, container = null }) {
   const [qty, setQty] = useState(1);
   if (!item) return null;
 
@@ -1862,8 +1864,7 @@ function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency, isR
     </div>
   );
 
-  return typeof document !== 'undefined'
-    ? createPortal(modalContent, document.body)
-    : modalContent;
+  const targetNode = container || (typeof document !== 'undefined' ? (document.fullscreenElement || document.webkitFullscreenElement || document.body) : null);
+  return targetNode ? createPortal(modalContent, targetNode) : modalContent;
 }
 
