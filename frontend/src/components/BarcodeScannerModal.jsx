@@ -116,7 +116,6 @@ export default function BarcodeScannerModal({
   const [hasZoom, setHasZoom] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [maxZoom, setMaxZoom] = useState(1);
-  const [engineInfo, setEngineInfo] = useState('Initializing scanner…');
 
   const handleScanSuccess = (rawCode) => {
     if (!rawCode) return;
@@ -255,14 +254,9 @@ export default function BarcodeScannerModal({
             }
             barcodeDetector = new window.BarcodeDetector({ formats: formatsToUse });
             hasNativeDetector = true;
-            setEngineInfo(`Engine: Native MLKit (${formatsToUse.length} formats, ITF included)`);
           } catch (e) {
             console.warn('Native BarcodeDetector init failed, using ZXing:', e);
           }
-        }
-
-        if (!hasNativeDetector) {
-          setEngineInfo('Engine: Universal ZXing Reader (ITF, Code 128, EAN, 2 of 5)');
         }
 
         // Scan interval loop
@@ -403,14 +397,14 @@ export default function BarcodeScannerModal({
 
   const modalContent = (
     <div
-      className="modal-overlay p-2 sm:p-4 fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs"
+      className="modal-overlay fixed inset-0 z-[11000] flex items-end sm:items-center justify-center bg-slate-950/70 backdrop-blur-xs p-0 sm:p-4 animate-fade-in select-none"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Continuous Scan Result Feedback Toast */}
       {lastScanResult && (
         <div className="fixed top-4 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-[12000] animate-fade-in pointer-events-none">
           {lastScanResult.success ? (
-            <div className="bg-emerald-600 text-white px-3.5 py-2 rounded-2xl shadow-2xl flex items-center justify-between text-xs font-black border border-emerald-400/80 backdrop-blur-md">
+            <div className="bg-emerald-600 text-white px-3.5 py-2.5 rounded-2xl shadow-2xl flex items-center justify-between text-xs font-black border border-emerald-400/80 backdrop-blur-md">
               <div className="flex items-center gap-2 truncate">
                 <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
                   <Check size={13} strokeWidth={3} className="text-white" />
@@ -424,7 +418,7 @@ export default function BarcodeScannerModal({
               </span>
             </div>
           ) : (
-            <div className="bg-rose-600 text-white px-3.5 py-2 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-black border border-rose-400/80 backdrop-blur-md">
+            <div className="bg-rose-600 text-white px-3.5 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-black border border-rose-400/80 backdrop-blur-md">
               <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
                 <AlertCircle size={13} strokeWidth={3} className="text-white" />
               </div>
@@ -439,79 +433,50 @@ export default function BarcodeScannerModal({
       {/* Hidden processing canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Main Modal Panel */}
-      <div className="modal-panel max-w-md w-full bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-2xl overflow-hidden animate-fade-in flex flex-col max-h-[94vh]">
+      {/* Main Modal Panel: Bottom-sheet on mobile, centered card on desktop */}
+      <div className="modal-panel w-full sm:max-w-md bg-white text-slate-800 border border-slate-200/80 shadow-2xl rounded-t-3xl sm:rounded-2xl overflow-hidden animate-slide-up sm:animate-fade-in flex flex-col max-h-[92vh]">
+        {/* Mobile Pull Bar Indicator */}
+        <div className="flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
+          <div className="w-12 h-1 rounded-full bg-slate-300" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b border-slate-100 bg-slate-50/70 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0 shadow-xs">
-              <ScanLine size={17} strokeWidth={2.2} />
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0 shadow-xs">
+              <ScanLine size={18} strokeWidth={2.3} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-tight truncate">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
                   {title}
                 </h3>
                 {continuous && cartLength > 0 && (
-                  <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                    Cart: {cartLength}
+                  <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                    {cartLength} in Cart
                   </span>
                 )}
               </div>
-              <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium truncate">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium truncate">
                 {subtitle}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Flashlight button if supported */}
-            {hasTorch && (
-              <button
-                type="button"
-                onClick={handleToggleTorch}
-                title={torchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'}
-                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                  torchOn
-                    ? 'bg-amber-100 text-amber-700 border-amber-300'
-                    : 'bg-white hover:bg-slate-100 text-slate-500 border-slate-200'
-                }`}
-              >
-                {torchOn ? <Zap size={15} /> : <ZapOff size={15} />}
-              </button>
-            )}
-
-            {/* Zoom button if supported */}
-            {hasZoom && (
-              <button
-                type="button"
-                onClick={handleToggleZoom}
-                title={`Zoom: ${zoomLevel}x`}
-                className={`p-1.5 rounded-lg border text-[11px] font-black transition-colors cursor-pointer flex items-center gap-0.5 ${
-                  zoomLevel > 1
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                    : 'bg-white hover:bg-slate-100 text-slate-500 border-slate-200'
-                }`}
-              >
-                {zoomLevel > 1 ? <ZoomOut size={14} /> : <ZoomIn size={14} />}
-                <span>{zoomLevel}x</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
-            >
-              <X size={17} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer transition-colors shrink-0 ml-2"
+            title="Close"
+          >
+            <X size={18} strokeWidth={2.2} />
+          </button>
         </div>
 
         {/* Body */}
-        <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3 overflow-y-auto">
-          {/* Camera Viewport */}
-          <div className="relative w-full aspect-16/10 sm:aspect-4/3 max-h-[34vh] sm:max-h-[38vh] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center shadow-inner">
+        <div className="p-3.5 sm:p-4 space-y-3 overflow-y-auto">
+          {/* Camera Viewport with Floating Controls */}
+          <div className="relative w-full aspect-[4/3] sm:aspect-16/10 max-h-[40vh] bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner border border-slate-900">
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
@@ -520,46 +485,99 @@ export default function BarcodeScannerModal({
               autoPlay
             />
 
+            {/* Floating Camera Controls (Torch & Zoom) on Top-Right of Viewfinder */}
+            <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-20">
+              {hasTorch && (
+                <button
+                  type="button"
+                  onClick={handleToggleTorch}
+                  title={torchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'}
+                  className={`px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-md border shadow-md flex items-center gap-1 transition-all cursor-pointer ${
+                    torchOn
+                      ? 'bg-amber-400 text-slate-950 border-amber-300 font-extrabold shadow-amber-500/30'
+                      : 'bg-slate-900/75 text-white border-white/20 hover:bg-slate-900/90'
+                  }`}
+                >
+                  {torchOn ? <Zap size={13} className="fill-slate-950" /> : <ZapOff size={13} />}
+                  <span>Flash</span>
+                </button>
+              )}
+
+              {hasZoom && (
+                <button
+                  type="button"
+                  onClick={handleToggleZoom}
+                  title={`Zoom: ${zoomLevel}x`}
+                  className={`px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-md border shadow-md flex items-center gap-1 transition-all cursor-pointer ${
+                    zoomLevel > 1
+                      ? 'bg-emerald-500 text-white border-emerald-300 font-extrabold shadow-emerald-500/30'
+                      : 'bg-slate-900/75 text-white border-white/20 hover:bg-slate-900/90'
+                  }`}
+                >
+                  {zoomLevel > 1 ? <ZoomOut size={13} /> : <ZoomIn size={13} />}
+                  <span>{zoomLevel}x</span>
+                </button>
+              )}
+            </div>
+
             {/* Viewfinder Target Framing */}
-            <div className="absolute inset-0 border-2 border-emerald-500/70 m-3 sm:m-6 rounded-xl pointer-events-none flex flex-col justify-between p-1.5 sm:p-2">
+            <div className="absolute inset-0 m-4 sm:m-6 pointer-events-none flex flex-col justify-between p-1">
               <div className="flex justify-between">
-                <div className="w-4 h-4 border-t-2 border-l-2 border-emerald-400" />
-                <div className="w-4 h-4 border-t-2 border-r-2 border-emerald-400" />
+                <div className="w-5 h-5 border-t-3 border-l-3 border-emerald-400 rounded-tl-lg shadow-[0_0_8px_#34d399]" />
+                <div className="w-5 h-5 border-t-3 border-r-3 border-emerald-400 rounded-tr-lg shadow-[0_0_8px_#34d399]" />
               </div>
-              <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse" />
+
+              {/* Glowing Laser Scanline */}
+              <div className="relative w-full flex items-center justify-center">
+                <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-pulse" />
+                <span className="absolute text-[9px] font-extrabold text-emerald-300 bg-slate-950/70 px-2 py-0.5 rounded-full backdrop-blur-xs tracking-wider uppercase border border-emerald-400/30 shadow-xs">
+                  Align Barcode
+                </span>
+              </div>
+
               <div className="flex justify-between">
-                <div className="w-4 h-4 border-b-2 border-l-2 border-emerald-400" />
-                <div className="w-4 h-4 border-b-2 border-r-2 border-emerald-400" />
+                <div className="w-5 h-5 border-b-3 border-l-3 border-emerald-400 rounded-bl-lg shadow-[0_0_8px_#34d399]" />
+                <div className="w-5 h-5 border-b-3 border-r-3 border-emerald-400 rounded-br-lg shadow-[0_0_8px_#34d399]" />
               </div>
             </div>
 
             {/* Error Message if camera failed */}
             {error && (
-              <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-3 text-center z-10">
-                <Camera size={26} className="text-rose-400 mb-1.5" />
-                <p className="text-xs font-bold text-white mb-0.5">Camera Not Available</p>
-                <p className="text-[10px] text-slate-300 max-w-[240px] mb-2">{error}</p>
-                <p className="text-[9px] text-emerald-400 font-semibold">
-                  You can type the barcode manually below
+              <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30">
+                <div className="w-11 h-11 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center border border-rose-500/20 mb-2">
+                  <Camera size={22} />
+                </div>
+                <p className="text-xs font-bold text-white mb-1">Camera Not Available</p>
+                <p className="text-[11px] text-slate-400 max-w-[240px] mb-2.5">{error}</p>
+                <p className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-500/20">
+                  Type barcode number below
                 </p>
               </div>
             )}
           </div>
 
-          {/* Symbology Info Note */}
-          <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
-            <span className="truncate">{engineInfo}</span>
-            <span className="font-semibold text-emerald-600 shrink-0">Auto-Detect</span>
+          {/* Clean Scanner Status */}
+          <div className="flex items-center justify-between px-1 text-xs text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="font-semibold text-slate-600 text-[11px]">Ready • Point at barcode</span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Auto-Detect
+            </span>
           </div>
 
           {/* Manual Barcode Input Form */}
-          <form onSubmit={handleManualSubmit} className="flex gap-1.5 sm:gap-2">
+          <form onSubmit={handleManualSubmit} className="flex gap-2">
             <div className="relative flex-1">
-              <Keyboard size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Keyboard size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                className="w-full pl-8 pr-2.5 py-1.5 sm:py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white text-slate-900 transition-colors"
-                placeholder="Or type barcode (e.g. 7000000491)..."
+                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm font-mono border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white text-slate-900 transition-colors shadow-2xs"
+                placeholder="Type barcode manually..."
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
               />
@@ -567,30 +585,43 @@ export default function BarcodeScannerModal({
             <button
               type="submit"
               disabled={!manualCode.trim()}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-black rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer shrink-0 shadow-xs active:scale-95"
             >
               Use
             </button>
           </form>
 
-          {/* Footer Info */}
-          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <Info size={11} className="text-slate-400" />
-              USB / Bluetooth scanners can scan directly
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="font-bold text-slate-600 hover:text-slate-800 cursor-pointer"
-            >
-              {continuous ? 'Done' : 'Cancel'}
-            </button>
+          {/* Footer Actions */}
+          <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+            {continuous ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Check size={16} strokeWidth={2.8} />
+                <span>Done Scanning {cartLength > 0 ? `(${cartLength} in Cart)` : ''}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
+
+            <div className="flex items-center justify-center gap-1 text-[10px] text-slate-400 text-center">
+              <Info size={11} className="text-slate-400 shrink-0" />
+              <span>USB & Bluetooth handheld scanners work automatically</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
+
 
   return targetNode ? createPortal(modalContent, targetNode) : modalContent;
 }
