@@ -17,6 +17,7 @@ import { getItems, createItem, updateItem, deleteItem, getCategories, createCate
   uploadFile, fmtCurrency, fmt, generateAIDescription, getPosSettings,
   isBusinessGstRegistered, getActiveTaxRates, getDefaultTaxRate } from '../api/client.js';
 import { toast } from '../utils/toast.js';
+import { getCachedData } from '../utils/cache.js';
 import BarcodeScannerModal from './BarcodeScannerModal';
 
 const UNITS   = ['Pcs', 'Mtr', 'Kg', 'Ltr', 'Box', 'Pair', 'Set', 'Roll'];
@@ -524,7 +525,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
       }
 
       if (isEdit) {
-        await updateItem(item.id, { 
+        const res = await updateItem(item.id, { 
           ...form, 
           image_url: finalImageUrl,
           tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : saleTaxType,
@@ -538,8 +539,9 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
           current_stock: itemType === 'service' ? 0 : (Number(form.current_stock) || 0) 
         });
         toast.success('Item updated successfully');
+        onSave(res, false);
       } else {
-        await createItem({ 
+        const res = await createItem({ 
           ...form, 
           image_url: finalImageUrl,
           tax_type: !isRegistered || Number(form.tax_rate) === 0 ? 'Excl' : saleTaxType,
@@ -553,21 +555,22 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
           opening_stock: itemType === 'service' ? 0 : (Number(form.opening_stock) || 0) 
         });
         toast.success('Item added successfully');
-      }
-      if (keepOpen) {
-        if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(imagePreviewUrl);
+        if (keepOpen) {
+          if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(imagePreviewUrl);
+          }
+          setPendingImageFile(null);
+          setImagePreviewUrl(null);
+          const resetTaxRate = isRegistered ? getDefaultTaxRate() : 0;
+          setForm({ ...EMPTY_ITEM, tax_rate: resetTaxRate, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '' });
+          setSaleTaxType(getDefaultTaxMode(resetTaxRate));
+          setPurchaseTaxType(getDefaultTaxMode(resetTaxRate));
+          setItemType('item');
+          setActiveTab('pricing');
+          if (onSave) onSave(res, true);
+        } else {
+          onSave(res, false);
         }
-        setPendingImageFile(null);
-        setImagePreviewUrl(null);
-        const resetTaxRate = isRegistered ? getDefaultTaxRate() : 0;
-        setForm({ ...EMPTY_ITEM, tax_rate: resetTaxRate, image_url: null, wholesale_price: '', dealer_price: '', min_sale_price: '', brand: '', model: '', rack_location: '', size_color: '' });
-        setSaleTaxType(getDefaultTaxMode(resetTaxRate));
-        setPurchaseTaxType(getDefaultTaxMode(resetTaxRate));
-        setItemType('item');
-        setActiveTab('pricing');
-      } else {
-        onSave();
       }
     } catch (e) {
       toast.error(e.message || 'Failed to save item');
@@ -2355,8 +2358,23 @@ export default function Inventory() {
   const [sortDir, setSortDir]           = useState('desc');
   const [searchParams]                  = useSearchParams();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      const companyId = localStorage.getItem('companyId') || 'default';
+      const cachedItems = getCachedData(`items_${companyId}`);
+      const cachedCats = getCachedData(`categories_${companyId}`);
+      if (cachedItems && cachedCats) {
+        setItems(cachedItems);
+        setCategories(cachedCats);
+        setSubCategories(getCachedData(`sub_categories_${companyId}_all`) || []);
+        setBrands(getCachedData(`brands_${companyId}`) || []);
+        setUnits(getCachedData(`units_${companyId}`) || []);
+        setUnitConversions(getCachedData(`unit_conversions_${companyId}`) || []);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    }
     try {
       const params = {};
       if (search) params.search = search;
@@ -2376,18 +2394,26 @@ export default function Inventory() {
         setSelectedItem(updated || null);
       }
     } catch {
-      setItems([]);
-      setCategories([]);
-      setSubCategories([]);
-      setBrands([]);
-      setUnits([]);
-      setUnitConversions([]);
+      if (!isSilent) {
+        setItems([]);
+        setCategories([]);
+        setSubCategories([]);
+        setBrands([]);
+        setUnits([]);
+        setUnitConversions([]);
+      }
     } finally {
       setLoading(false);
     }
   }, [search, lowStock, selectedItem]);
 
   useEffect(() => { load(); }, [search, lowStock]);
+
+  useEffect(() => {
+    const handleFocus = () => { load(true); };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [load]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1') setModal('new');
@@ -2772,7 +2798,7 @@ export default function Inventory() {
                   >
                     <div className="min-w-0 flex items-center gap-2.5 flex-1 pr-2">
                       {item.image_url ? (
-                        <img src={item.image_url} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 border border-gray-200" />
+                        <img src={item.image_url} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 border border-gray-200" />
                       ) : (
                         <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 flex-shrink-0">
                           <Package size={18} />
@@ -2823,6 +2849,8 @@ export default function Inventory() {
                       <img 
                         src={selectedItem.image_url} 
                         alt={selectedItem.name} 
+                        loading="lazy"
+                        decoding="async"
                         className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border border-slate-200/85 shadow-xs shrink-0 bg-white" 
                       />
                     ) : (
@@ -3807,7 +3835,14 @@ export default function Inventory() {
           brands={brands}
           units={units}
           onClose={() => setModal(null)}
-          onSave={() => { setModal(null); load(); }}
+          onSave={(savedItem, keepOpenModal) => {
+            if (!keepOpenModal) setModal(null);
+            if (savedItem?.id) {
+              setItems(prev => [savedItem, ...prev.filter(i => i.id !== savedItem.id)]);
+              if (!keepOpenModal) setSelectedItem(savedItem);
+            }
+            load(true);
+          }}
         />
       )}
 

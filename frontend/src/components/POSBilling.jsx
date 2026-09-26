@@ -11,6 +11,7 @@ import {
 import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, fmtCurrency, fmt, getPosSettings, isBusinessGstRegistered } from '../api/client.js';
 import { getConnectedPrinter, printEscPosInvoice } from '../utils/bluetoothPrinter.js';
 import { toast } from '../utils/toast.js';
+import { getCachedData, prependCachedItem } from '../utils/cache.js';
 import BarcodeScannerModal from './BarcodeScannerModal';
 
 const playScannerBeep = () => {
@@ -36,22 +37,31 @@ export default function POSBilling() {
 
   const [items, setItems] = useState(() => {
     try {
-      const cached = localStorage.getItem('hk_pos_cached_items');
-      if (cached) return JSON.parse(cached);
+      const companyId = localStorage.getItem('companyId') || 'default';
+      const cached = getCachedData(`items_${companyId}`);
+      if (Array.isArray(cached) && cached.length > 0) return cached;
+      const legacy = localStorage.getItem('hk_pos_cached_items');
+      if (legacy) return JSON.parse(legacy);
     } catch { }
     return [];
   });
   const [parties, setParties] = useState(() => {
     try {
-      const cached = localStorage.getItem('hk_pos_cached_parties');
-      if (cached) return JSON.parse(cached);
+      const companyId = localStorage.getItem('companyId') || 'default';
+      const cached = getCachedData(`parties_${companyId}_CUSTOMER`);
+      if (Array.isArray(cached) && cached.length > 0) return cached;
+      const legacy = localStorage.getItem('hk_pos_cached_parties');
+      if (legacy) return JSON.parse(legacy);
     } catch { }
     return [];
   });
   const [loading, setLoading] = useState(() => {
     try {
-      const cached = localStorage.getItem('hk_pos_cached_items');
-      return !cached;
+      const companyId = localStorage.getItem('companyId') || 'default';
+      const cached = getCachedData(`items_${companyId}`);
+      if (Array.isArray(cached) && cached.length > 0) return false;
+      const legacy = localStorage.getItem('hk_pos_cached_items');
+      return !legacy;
     } catch { }
     return true;
   });
@@ -209,8 +219,8 @@ export default function POSBilling() {
     }
   };
 
-  const loadData = () => {
-    if (items.length === 0) setLoading(true);
+  const loadData = (isSilent = false) => {
+    if (!isSilent && items.length === 0) setLoading(true);
     Promise.all([
       getItems(),
       getParties({ type: 'CUSTOMER' })
@@ -220,21 +230,26 @@ export default function POSBilling() {
         const freshParties = partyList || [];
         setItems(freshItems);
         setParties(freshParties);
-        try {
-          localStorage.setItem('hk_pos_cached_items', JSON.stringify(freshItems));
-          localStorage.setItem('hk_pos_cached_parties', JSON.stringify(freshParties));
-        } catch { }
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!isSilent) setLoading(false);
+      });
   };
 
   useEffect(() => {
     loadData();
+    const handleFocus = () => {
+      loadData(true);
+    };
+    window.addEventListener('focus', handleFocus);
     const savedHeld = localStorage.getItem('hk_held_bills');
     if (savedHeld) {
       try { setHeldBills(JSON.parse(savedHeld)); } catch { }
     }
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   useEffect(() => {
@@ -271,10 +286,9 @@ export default function POSBilling() {
       setSelectedParty(created);
       setShowPartySelect(false);
       setPartySearch('');
-      try {
-        const cached = JSON.parse(localStorage.getItem('hk_pos_cached_parties') || '[]');
-        localStorage.setItem('hk_pos_cached_parties', JSON.stringify([created, ...cached]));
-      } catch { }
+      const companyId = localStorage.getItem('companyId') || 'default';
+      prependCachedItem(`parties_${companyId}_CUSTOMER`, created);
+      prependCachedItem(`parties_${companyId}_ALL`, created);
       toast.success(`Customer "${created.name}" added successfully`);
     } catch (err) {
       toast.error(err.message || 'Failed to quickly add customer');
@@ -331,10 +345,9 @@ export default function POSBilling() {
       setShowPartySelect(false);
       setShowAddCustomerModal(false);
       setNewCustomerForm({ name: '', phone: '', email: '', address: '', gst_number: '' });
-      try {
-        const cached = JSON.parse(localStorage.getItem('hk_pos_cached_parties') || '[]');
-        localStorage.setItem('hk_pos_cached_parties', JSON.stringify([created, ...cached]));
-      } catch { }
+      const companyId = localStorage.getItem('companyId') || 'default';
+      prependCachedItem(`parties_${companyId}_CUSTOMER`, created);
+      prependCachedItem(`parties_${companyId}_ALL`, created);
     } catch (err) {
       setCustomerError(err.message || 'Failed to create customer');
     } finally {
@@ -771,6 +784,8 @@ export default function POSBilling() {
                     <img
                       src={item.image_url}
                       alt={item.name}
+                      loading="lazy"
+                      decoding="async"
                       draggable={false}
                       onContextMenu={(e) => { if (typeof window !== 'undefined' && window.innerWidth < 1024) e.preventDefault(); }}
                       className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105 max-lg:pointer-events-none max-lg:select-none"
@@ -1579,7 +1594,7 @@ function ItemHoverPopup({ item, pos, fmtCurrency }) {
     >
       {item.image_url ? (
         <div className="w-full h-36 bg-white border-b border-slate-100 flex items-center justify-center p-2">
-          <img src={item.image_url} alt={item.name} className="max-w-full max-h-full object-contain" />
+          <img src={item.image_url} alt={item.name} loading="lazy" decoding="async" className="max-w-full max-h-full object-contain" />
         </div>
       ) : (
         <div className="w-full h-28 bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center border-b border-slate-100">
@@ -1720,6 +1735,8 @@ function MobileProductDetailModal({ item, onClose, onAddToCart, fmtCurrency, isR
               <img 
                 src={item.image_url} 
                 alt={item.name} 
+                loading="lazy"
+                decoding="async"
                 draggable={false}
                 onContextMenu={(e) => e.preventDefault()}
                 className="max-w-full max-h-full object-contain drop-shadow-sm pointer-events-none select-none" 

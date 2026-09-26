@@ -261,6 +261,23 @@ async function reconcilePartyBalance(db, companyId, partyId) {
   `).bind(reconciledBalance, partyId, companyId).run();
 }
 
+const extractR2Key = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/(pos_items\/[^\s?#]+|user_profile\/[^\s?#]+|company_profile\/[^\s?#]+)/);
+  return match ? match[1] : null;
+};
+
+const deleteR2Object = async (bucket, url) => {
+  try {
+    if (!bucket || !url) return;
+    const key = extractR2Key(url);
+    if (key) {
+      await bucket.delete(key);
+    }
+  } catch {}
+};
+
+
 app.use('/api/*', async (c, next) => {
   if (c.env?.DB && !migrationsApplied) {
     await runAutoMigrations(c.env.DB);
@@ -1253,11 +1270,18 @@ app.post('/api/user/upload-photo', authMiddleware, async (c) => {
     const buffer = await file.arrayBuffer();
     if (c.env.MY_POS_BUCKET) {
       await c.env.MY_POS_BUCKET.put(key, buffer, {
-        httpMetadata: { contentType: file.type || 'image/jpeg' }
+        httpMetadata: { 
+          contentType: file.type || 'image/jpeg',
+          cacheControl: 'public, max-age=31536000, immutable'
+        }
       });
     }
 
     const photoUrl = `https://api.pos.hisabkhata.sumanonline.com/api/storage/${key}`;
+    const prevUser = await c.env.DB.prepare(`SELECT photo_url FROM users WHERE id = ?`).bind(userId).first();
+    if (prevUser?.photo_url && c.env.MY_POS_BUCKET) {
+      await deleteR2Object(c.env.MY_POS_BUCKET, prevUser.photo_url);
+    }
     await c.env.DB.prepare(`UPDATE users SET photo_url = ? WHERE id = ?`).bind(photoUrl, userId).run();
 
     return c.json({ url: photoUrl, key });
@@ -2275,6 +2299,8 @@ app.put('/api/items/:id', authMiddleware, companyScopeMiddleware, async (c) => {
       current_stock, low_stock_alert, description, batch_number, expiry_date, image_url,
       wholesale_price = 0, mrp = 0, hsn_code, brand, aisle, rack, shelf, rack_location } = body;
 
+    const existing = await c.env.DB.prepare(`SELECT image_url FROM items WHERE id=? AND company_id=?`).bind(id, companyId).first();
+
     const locParts = [aisle ? `Aisle ${aisle}` : null, rack ? `Rack ${rack}` : null, shelf ? `Shelf ${shelf}` : null].filter(Boolean);
     const resolvedLocation = rack_location !== undefined ? (rack_location || null) : (locParts.length > 0 ? locParts.join(' • ') : null);
 
@@ -2296,6 +2322,14 @@ app.put('/api/items/:id', authMiddleware, companyScopeMiddleware, async (c) => {
       .run();
 
     if (result.meta.changes === 0) return c.json({ error: 'Item not found' }, 404);
+
+    if (existing?.image_url && image_url !== undefined && existing.image_url !== (image_url || null) && c.env.MY_POS_BUCKET) {
+      const inUse = await c.env.DB.prepare(`SELECT 1 FROM items WHERE image_url=? AND id!=? LIMIT 1`).bind(existing.image_url, id).first();
+      if (!inUse) {
+        await deleteR2Object(c.env.MY_POS_BUCKET, existing.image_url);
+      }
+    }
+
     return c.json({ id: parseInt(id), ...body, rack_location: resolvedLocation });
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -2306,8 +2340,17 @@ app.delete('/api/items/:id', authMiddleware, companyScopeMiddleware, async (c) =
   try {
     const companyId = c.get('companyId');
     const id = c.req.param('id');
+    const existing = await c.env.DB.prepare(`SELECT image_url FROM items WHERE id=? AND company_id=?`).bind(id, companyId).first();
     const result = await c.env.DB.prepare(`DELETE FROM items WHERE id=? AND company_id=?`).bind(id, companyId).run();
     if (result.meta.changes === 0) return c.json({ error: 'Item not found' }, 404);
+
+    if (existing?.image_url && c.env.MY_POS_BUCKET) {
+      const inUse = await c.env.DB.prepare(`SELECT 1 FROM items WHERE image_url=? AND id!=? LIMIT 1`).bind(existing.image_url, id).first();
+      if (!inUse) {
+        await deleteR2Object(c.env.MY_POS_BUCKET, existing.image_url);
+      }
+    }
+
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -3691,6 +3734,8 @@ app.put('/api/company', authMiddleware, companyScopeMiddleware, async (c) => {
     const body = await c.req.json();
     const { name, phone, address, state, state_code, gst_number, email, website, logo_url, signature_url, letterhead_url, upi_id } = body;
 
+    const prevComp = await c.env.DB.prepare(`SELECT logo_url, signature_url, letterhead_url FROM companies WHERE id=?`).bind(companyId).first();
+
     await c.env.DB.prepare(`
       UPDATE companies 
       SET name = COALESCE(?, name),
@@ -3719,6 +3764,19 @@ app.put('/api/company', authMiddleware, companyScopeMiddleware, async (c) => {
       upi_id !== undefined ? upi_id : null,
       companyId
     ).run();
+
+    if (c.env.MY_POS_BUCKET) {
+      if (prevComp?.logo_url && logo_url !== undefined && prevComp.logo_url !== logo_url) {
+        await deleteR2Object(c.env.MY_POS_BUCKET, prevComp.logo_url);
+      }
+      if (prevComp?.signature_url && signature_url !== undefined && prevComp.signature_url !== signature_url) {
+        await deleteR2Object(c.env.MY_POS_BUCKET, prevComp.signature_url);
+      }
+      if (prevComp?.letterhead_url && letterhead_url !== undefined && prevComp.letterhead_url !== letterhead_url) {
+        await deleteR2Object(c.env.MY_POS_BUCKET, prevComp.letterhead_url);
+      }
+    }
+
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -3752,12 +3810,19 @@ app.post('/api/upload', authMiddleware, companyScopeMiddleware, async (c) => {
     const buffer = await file.arrayBuffer();
 
     await c.env.MY_POS_BUCKET.put(key, buffer, {
-      httpMetadata: { contentType: file.type },
+      httpMetadata: { 
+        contentType: file.type,
+        cacheControl: 'public, max-age=31536000, immutable'
+      },
     });
 
     const publicUrl = `https://cdn.r2.sumanonline.com/${key}`;
     if (field === 'logo' || field === 'signature') {
       const urlField = field === 'signature' ? 'signature_url' : 'logo_url';
+      const prevComp = await c.env.DB.prepare(`SELECT ${urlField} as oldUrl FROM companies WHERE id=?`).bind(companyId).first();
+      if (prevComp?.oldUrl && c.env.MY_POS_BUCKET) {
+        await deleteR2Object(c.env.MY_POS_BUCKET, prevComp.oldUrl);
+      }
       await c.env.DB.prepare(`UPDATE companies SET ${urlField}=? WHERE id=?`).bind(publicUrl, companyId).run();
     }
 

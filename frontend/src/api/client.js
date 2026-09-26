@@ -3,6 +3,8 @@
 // Developer - Suman Chakrabortty (sumanonline.com)
 // =============================================================================
 
+import { getCachedData, setCachedData, invalidateCache, prependCachedItem, updateCachedItem, removeCachedItem, swrFetch } from '../utils/cache.js';
+
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 async function request(path, options = {}) {
@@ -64,27 +66,83 @@ export const resetPassword = (body) => request('/api/auth/reset-password', { met
 export const getCompanies = () => request('/api/companies');
 export const createCompany = (body) => request('/api/companies', { method: 'POST', body: JSON.stringify(body) });
 
-// ─── Categories ───────────────────────────────────────────────────────────────
-export const getCategories = () => request('/api/categories');
-export const createCategory = (body) => request('/api/categories', { method: 'POST', body: JSON.stringify(body) });
-export const getSubCategories = (categoryId) => request(categoryId ? `/api/sub-categories?category_id=${categoryId}` : '/api/sub-categories');
-export const createSubCategory = (body) => request('/api/sub-categories', { method: 'POST', body: JSON.stringify(body) });
-export const deleteSubCategory = (id) => request(`/api/sub-categories/${id}`, { method: 'DELETE' });
+export const getCategories = () => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  return swrFetch(`categories_${companyId}`, () => request('/api/categories'), { ttl: 600000 });
+};
+export const createCategory = async (body) => {
+  const res = await request('/api/categories', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`categories_${companyId}`);
+  return res;
+};
+export const getSubCategories = (categoryId) => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  return swrFetch(`sub_categories_${companyId}_${categoryId || 'all'}`, () => request(categoryId ? `/api/sub-categories?category_id=${categoryId}` : '/api/sub-categories'), { ttl: 600000 });
+};
+export const createSubCategory = async (body) => {
+  const res = await request('/api/sub-categories', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`sub_categories_${companyId}`);
+  return res;
+};
+export const deleteSubCategory = async (id) => {
+  const res = await request(`/api/sub-categories/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`sub_categories_${companyId}`);
+  return res;
+};
 
-// ─── Brands ───────────────────────────────────────────────────────────────────
-export const getBrands = () => request('/api/brands');
-export const createBrand = (body) => request('/api/brands', { method: 'POST', body: JSON.stringify(body) });
-export const deleteBrand = (id) => request(`/api/brands/${id}`, { method: 'DELETE' });
+export const getBrands = () => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  return swrFetch(`brands_${companyId}`, () => request('/api/brands'), { ttl: 600000 });
+};
+export const createBrand = async (body) => {
+  const res = await request('/api/brands', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`brands_${companyId}`);
+  return res;
+};
+export const deleteBrand = async (id) => {
+  const res = await request(`/api/brands/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`brands_${companyId}`);
+  return res;
+};
 
-// ─── Units ────────────────────────────────────────────────────────────────────
-export const getUnits = () => request('/api/units');
-export const createUnit = (body) => request('/api/units', { method: 'POST', body: JSON.stringify(body) });
-export const deleteUnit = (id) => request(`/api/units/${id}`, { method: 'DELETE' });
-export const getUnitConversions = () => request('/api/unit-conversions');
-export const createUnitConversion = (body) => request('/api/unit-conversions', { method: 'POST', body: JSON.stringify(body) });
-export const deleteUnitConversion = (id) => request(`/api/unit-conversions/${id}`, { method: 'DELETE' });
+export const getUnits = () => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  return swrFetch(`units_${companyId}`, () => request('/api/units'), { ttl: 600000 });
+};
+export const createUnit = async (body) => {
+  const res = await request('/api/units', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`units_${companyId}`);
+  return res;
+};
+export const deleteUnit = async (id) => {
+  const res = await request(`/api/units/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`units_${companyId}`);
+  return res;
+};
+export const getUnitConversions = () => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  return swrFetch(`unit_conversions_${companyId}`, () => request('/api/unit-conversions'), { ttl: 600000 });
+};
+export const createUnitConversion = async (body) => {
+  const res = await request('/api/unit-conversions', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`unit_conversions_${companyId}`);
+  return res;
+};
+export const deleteUnitConversion = async (id) => {
+  const res = await request(`/api/unit-conversions/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`unit_conversions_${companyId}`);
+  return res;
+};
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
 export const getDashboard = () => request('/api/dashboard');
 
 function buildQuery(params = {}) {
@@ -94,26 +152,84 @@ function buildQuery(params = {}) {
 }
 
 export const getItems = (params = {}) => {
-  return request(`/api/items${buildQuery(params)}`);
+  const queryStr = buildQuery(params);
+  if (!queryStr) {
+    const companyId = localStorage.getItem('companyId') || 'default';
+    return swrFetch(`items_${companyId}`, () => request('/api/items'), { ttl: 300000 });
+  }
+  return request(`/api/items${queryStr}`);
 };
-export const createItem = (body) => request('/api/items', { method: 'POST', body: JSON.stringify(body) });
-export const updateItem = (id, body) => request(`/api/items/${id}`, { method: 'PUT', body: JSON.stringify(body) });
-export const deleteItem = (id) => request(`/api/items/${id}`, { method: 'DELETE' });
+export const createItem = async (body) => {
+  const res = await request('/api/items', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  prependCachedItem(companyId, res);
+  return res;
+};
+export const updateItem = async (id, body) => {
+  const res = await request(`/api/items/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  updateCachedItem(companyId, id, res);
+  return res;
+};
+export const deleteItem = async (id) => {
+  const res = await request(`/api/items/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  removeCachedItem(companyId, id);
+  return res;
+};
 
 export const getParties = (params = {}) => {
-  return request(`/api/parties${buildQuery(params)}`);
+  const companyId = localStorage.getItem('companyId') || 'default';
+  const queryStr = buildQuery(params);
+  if (!params.search) {
+    return swrFetch(`parties_${companyId}_${params.type || 'ALL'}`, () => request(`/api/parties${queryStr}`), { ttl: 300000 });
+  }
+  return request(`/api/parties${queryStr}`);
 };
-export const createParty = (body) => request('/api/parties', { method: 'POST', body: JSON.stringify(body) });
-export const updateParty = (id, body) => request(`/api/parties/${id}`, { method: 'PUT', body: JSON.stringify(body) });
-export const deleteParty = (id) => request(`/api/parties/${id}`, { method: 'DELETE' });
+export const createParty = async (body) => {
+  const res = await request('/api/parties', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`parties_${companyId}_${body.type || 'ALL'}`);
+  invalidateCache(`parties_${companyId}_ALL`);
+  invalidateCache(`parties_${companyId}_CUSTOMER`);
+  invalidateCache(`parties_${companyId}_VENDOR`);
+  return res;
+};
+export const updateParty = async (id, body) => {
+  const res = await request(`/api/parties/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`parties_${companyId}_${body.type || 'ALL'}`);
+  invalidateCache(`parties_${companyId}_ALL`);
+  invalidateCache(`parties_${companyId}_CUSTOMER`);
+  invalidateCache(`parties_${companyId}_VENDOR`);
+  return res;
+};
+export const deleteParty = async (id) => {
+  const res = await request(`/api/parties/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`parties_${companyId}_ALL`);
+  invalidateCache(`parties_${companyId}_CUSTOMER`);
+  invalidateCache(`parties_${companyId}_VENDOR`);
+  return res;
+};
 
 export const getInvoices = (params = {}) => {
   return request(`/api/invoices${buildQuery(params)}`);
 };
 export const getInvoice = (id) => request(`/api/invoices/${id}`);
 export const getPublicInvoice = (id) => request(`/api/public/invoices/${id}`);
-export const createInvoice = (body) => request('/api/invoices', { method: 'POST', body: JSON.stringify(body) });
-export const deleteInvoice = (id) => request(`/api/invoices/${id}`, { method: 'DELETE' });
+export const createInvoice = async (body) => {
+  const res = await request('/api/invoices', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`items_${companyId}`);
+  return res;
+};
+export const deleteInvoice = async (id) => {
+  const res = await request(`/api/invoices/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`items_${companyId}`);
+  return res;
+};
 export const sendInvoiceReceipt = (id, body = {}) => request(`/api/invoices/${id}/send-receipt`, { method: 'POST', body: JSON.stringify(body) });
 
 export const getTransactions = (params = {}) => {
