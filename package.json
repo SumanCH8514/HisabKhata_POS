@@ -5,6 +5,10 @@
   "scripts": {
     "dev": "npm run dev --prefix frontend",
     "install:all": "npm install && npm install --prefix frontend",
+    "build:frontend": "npm run build --prefix frontend",
+    "deploy:frontend": "npm run build --prefix frontend && wrangler pages deploy frontend/dist --project-name=hisabkhata-pos",
+    "deploy:backend": "npm run deploy --prefix backend",
+    "deploy:all": "npm run deploy:backend && npm run deploy:frontend",
     "db:migrate": "npm run db:migrate --prefix backend"
   },
   "devDependencies": {
