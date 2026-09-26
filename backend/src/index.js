@@ -412,7 +412,7 @@ app.get('/', (c) => {
   if (accept.includes('application/json') && !accept.includes('text/html')) {
     return c.json({
       status: 'ok',
-      service: 'HisabKhata POS Worker Engine',
+      service: 'HisabKhata POS Backend',
       version: 'v2.4.0',
       database: 'D1 Connected',
       storage: 'R2 Active',
@@ -826,7 +826,7 @@ app.post('/api/auth/signup', async (c) => {
           html: mailContent.html
         });
       }
-    } catch (mailErr) {}
+    } catch (mailErr) { }
 
     return c.json({
       success: true,
@@ -884,7 +884,7 @@ app.post('/api/auth/resend-verification', async (c) => {
           html: mailContent.html
         });
       }
-    } catch (mailErr) {}
+    } catch (mailErr) { }
 
     return c.json({ success: true, message: 'A fresh verification link and code have been sent to your email.' });
   } catch (err) {
@@ -998,7 +998,7 @@ app.post('/api/auth/login', async (c) => {
         if (!verifyResult.success) {
           return c.json({ error: 'Security verification failed. Please complete the captcha.' }, 400);
         }
-      } catch (tsErr) {}
+      } catch (tsErr) { }
     }
 
     const cleanEmail = email.toLowerCase().trim();
@@ -1093,7 +1093,7 @@ app.post('/api/auth/forgot-password', async (c) => {
             html: mailContent.html
           });
         }
-      } catch (mailErr) {}
+      } catch (mailErr) { }
     }
 
     return c.json({
@@ -2807,7 +2807,7 @@ async function ensureDefaultFundAccounts(db, companyId) {
           SELECT DISTINCT account_id FROM fund_transactions WHERE company_id = ?
         )
     `).bind(companyId, companyId, companyId).run();
-  } catch (e) {}
+  } catch (e) { }
 
   let { results } = await db.prepare(`SELECT * FROM fund_accounts WHERE company_id = ? ORDER BY created_at ASC`).bind(companyId).all();
   const list = results || [];
@@ -2881,7 +2881,7 @@ async function syncUnlinkedInvoicesToFunds(db, companyId) {
       const direction = isSales ? 'IN' : 'OUT';
       const amt = Number(inv.amount_paid);
       const partyLabel = inv.party_name ? ` (${inv.party_name})` : '';
-      const desc = isSales 
+      const desc = isSales
         ? `Sales Receipt: ${inv.invoice_number}${partyLabel}`
         : `Purchase Payment: ${inv.invoice_number}${partyLabel}`;
 
@@ -2995,10 +2995,10 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
       const effectiveMrp = (item.mrp !== undefined && item.mrp !== null && Number(item.mrp) > 0)
         ? Number(item.mrp)
         : ((dbInfo && Number(dbInfo.mrp) > 0)
-            ? Number(dbInfo.mrp)
-            : ((dbInfo && Number(dbInfo.sale_price) > 0)
-                ? Number(dbInfo.sale_price)
-                : (grossUnit > 0 ? grossUnit : rate)));
+          ? Number(dbInfo.mrp)
+          : ((dbInfo && Number(dbInfo.sale_price) > 0)
+            ? Number(dbInfo.sale_price)
+            : (grossUnit > 0 ? grossUnit : rate)));
       item.mrp = effectiveMrp;
 
       stmts.push(
@@ -3075,7 +3075,7 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
         await db.batch(stmts);
       }
     } catch (batchErr) {
-      await db.prepare(`DELETE FROM invoices WHERE id = ? AND company_id = ?`).bind(invoiceId, companyId).run().catch(() => {});
+      await db.prepare(`DELETE FROM invoices WHERE id = ? AND company_id = ?`).bind(invoiceId, companyId).run().catch(() => { });
       throw batchErr;
     }
 
@@ -3098,7 +3098,7 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
             customerPhone = party.phone.trim();
           }
           if (recipientEmail && (!party.email || !party.email.trim())) {
-            await db.prepare(`UPDATE parties SET email = ?, updated_at = datetime('now') WHERE id = ? AND company_id = ?`).bind(recipientEmail, party_id, companyId).run().catch(() => {});
+            await db.prepare(`UPDATE parties SET email = ?, updated_at = datetime('now') WHERE id = ? AND company_id = ?`).bind(recipientEmail, party_id, companyId).run().catch(() => { });
           }
         }
       }
@@ -3141,10 +3141,10 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
               const mrp = (it.mrp !== undefined && it.mrp !== null && Number(it.mrp) > 0)
                 ? Number(it.mrp)
                 : ((dbInfo && Number(dbInfo.mrp) > 0)
-                    ? Number(dbInfo.mrp)
-                    : ((dbInfo && Number(dbInfo.sale_price) > 0)
-                        ? Number(dbInfo.sale_price)
-                        : (grossUnit > 0 ? grossUnit : effectiveRate)));
+                  ? Number(dbInfo.mrp)
+                  : ((dbInfo && Number(dbInfo.sale_price) > 0)
+                    ? Number(dbInfo.sale_price)
+                    : (grossUnit > 0 ? grossUnit : effectiveRate)));
               return {
                 name: it.item_name,
                 qty: qty,
@@ -3260,10 +3260,10 @@ app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddlewar
         const mrp = (it.mrp !== undefined && it.mrp !== null && Number(it.mrp) > 0)
           ? Number(it.mrp)
           : (Number(it.db_item_mrp) > 0
-              ? Number(it.db_item_mrp)
-              : (Number(it.db_sale_price) > 0
-                  ? Number(it.db_sale_price)
-                  : (grossUnit > 0 ? grossUnit : effectiveRate)));
+            ? Number(it.db_item_mrp)
+            : (Number(it.db_sale_price) > 0
+              ? Number(it.db_sale_price)
+              : (grossUnit > 0 ? grossUnit : effectiveRate)));
         return {
           name: it.item_name,
           qty: qty,
@@ -3293,7 +3293,7 @@ app.post('/api/invoices/:id/send-receipt', authMiddleware, companyScopeMiddlewar
     });
 
     if (invoice.party_id && (!invoice.party_email || !invoice.party_email.trim())) {
-      await db.prepare(`UPDATE parties SET email = ?, updated_at = datetime('now') WHERE id = ? AND company_id = ?`).bind(recipientEmail, invoice.party_id, companyId).run().catch(() => {});
+      await db.prepare(`UPDATE parties SET email = ?, updated_at = datetime('now') WHERE id = ? AND company_id = ?`).bind(recipientEmail, invoice.party_id, companyId).run().catch(() => { });
     }
 
     return c.json({
@@ -4161,6 +4161,123 @@ app.get('/api/referrals', authMiddleware, async (c) => {
   }
 });
 
+app.get('/api/ai/config', authMiddleware, async (c) => {
+  const clientKey = c.req.query('apiKey');
+  const serverApiKey = c.env.GROQ_API_KEY || '';
+  const apiKey = clientKey || serverApiKey;
+  const serverModel = c.env.GROQ_MODEL || c.env.GROQ_AI_MODEL || c.env.AI_MODEL || 'llama-3.3-70b-versatile';
+
+  const defaultModels = [
+    { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Flagship - Recommended)' },
+    { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Ultra Fast)' },
+    { value: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Distill 70B (High Reasoning)' },
+    { value: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B (Catalog & Vision Specialist)' },
+    { value: 'openai/gpt-oss-120b', label: 'OpenAI GPT-OSS 120B' },
+    { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT-OSS 20B (Fast)' }
+  ];
+
+  let liveModels = null;
+  if (apiKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.data)) {
+          const textModels = data.data
+            .filter(m => m.active !== false && !m.id.includes('whisper'))
+            .map(m => ({ value: m.id, label: m.id }));
+          if (textModels.length > 0) {
+            liveModels = textModels;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return c.json({
+    hasServerApiKey: !!serverApiKey,
+    serverModel,
+    models: liveModels || defaultModels
+  });
+});
+
+app.post('/api/ai/test', authMiddleware, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { apiKey: clientApiKey, aiModel } = body;
+    const groqApiKey = clientApiKey || c.env.GROQ_API_KEY;
+    if (!groqApiKey) {
+      return c.json({
+        success: false,
+        error: 'Groq API Key not found. Please provide an API key or configure GROQ_API_KEY in Cloudflare environment.'
+      }, 400);
+    }
+
+    const selectedModel = (aiModel && aiModel !== 'env_default')
+      ? aiModel
+      : (c.env.GROQ_MODEL || c.env.GROQ_AI_MODEL || c.env.AI_MODEL || 'llama-3.3-70b-versatile');
+
+    const startTime = Date.now();
+    const testPrompt = 'Respond with "Operational" and 3 words describing system readiness.';
+
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an AI system tester. Output a single short sentence under 10 words.'
+          },
+          {
+            role: 'user',
+            content: testPrompt
+          }
+        ],
+        temperature: 0.3,
+        max_completion_tokens: 60
+      })
+    });
+
+    const latencyMs = Date.now() - startTime;
+    const data = await groqRes.json();
+
+    if (!groqRes.ok) {
+      return c.json({
+        success: false,
+        error: data.error?.message || `Groq API responded with status ${groqRes.status}`,
+        model: selectedModel,
+        latencyMs
+      }, 400);
+    }
+
+    let reply = data.choices?.[0]?.message?.content?.trim() || '';
+    if (reply.includes('</think>')) {
+      reply = reply.split('</think>').pop().trim();
+    } else {
+      reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+    reply = reply.replace(/^["']|["']$/g, '').trim();
+
+    return c.json({
+      success: true,
+      model: selectedModel,
+      latencyMs,
+      reply,
+      keySource: clientApiKey ? 'Custom Key' : 'Cloudflare Environment',
+      modelSource: (aiModel && aiModel !== 'env_default') ? 'Custom Selection' : (c.env.GROQ_MODEL || c.env.GROQ_AI_MODEL || c.env.AI_MODEL ? 'Cloudflare Environment' : 'System Default')
+    });
+  } catch (err) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 app.post('/api/ai/generate-description', authMiddleware, async (c) => {
   try {
     const body = await c.req.json();
@@ -4174,7 +4291,10 @@ app.post('/api/ai/generate-description', authMiddleware, async (c) => {
       return c.json({ error: 'Groq API Key not configured. Please add GROQ_API_KEY in Settings or Worker environment.' }, 400);
     }
 
-    const selectedModel = aiModel || c.env.GROQ_MODEL || 'qwen/qwen3.6-27b';
+    const selectedModel = (aiModel && aiModel !== 'env_default')
+      ? aiModel
+      : (c.env.GROQ_MODEL || c.env.GROQ_AI_MODEL || c.env.AI_MODEL || 'llama-3.3-70b-versatile');
+
 
     let prompt = '';
     if (type === 'category') {
@@ -4233,6 +4353,7 @@ app.post('/api/ai/generate-description', authMiddleware, async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
+
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 app.onError((err, c) => {

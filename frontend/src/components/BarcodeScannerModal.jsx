@@ -23,9 +23,6 @@ import {
   BarcodeFormat
 } from '@zxing/library';
 
-// Web Audio API Beep on successful scan
-// Fix @zxing/library bundler bug where "ex instanceof ReaderException" evaluates to false
-// across ESM chunks in Vite, causing NotFoundExceptions to flood the console with warnings.
 if (typeof MultiFormatReader !== 'undefined' && MultiFormatReader.prototype?.decodeInternal) {
   MultiFormatReader.prototype.decodeInternal = function (image) {
     if (!this.readers) return null;
@@ -56,9 +53,7 @@ function playScanBeep() {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.12);
-  } catch {
-    // Ignore audio autoplay restrictions
-  }
+  } catch {}
 }
 
 function triggerHaptic() {
@@ -125,13 +120,11 @@ export default function BarcodeScannerModal({
     const now = Date.now();
     const lastTime = lastScannedTimeRef.current[code] || 0;
 
-    // Debounce duplicate scans within 1500ms
     if (now - lastTime < 1500) {
       return;
     }
     lastScannedTimeRef.current[code] = now;
 
-    // Sound & Haptic Feedback
     playScanBeep();
     triggerHaptic();
 
@@ -154,7 +147,6 @@ export default function BarcodeScannerModal({
     let barcodeDetector = null;
     let zxingReader = null;
 
-    // Initialize ZXing MultiFormatReader
     try {
       zxingReader = new MultiFormatReader();
       const hints = new Map();
@@ -182,7 +174,6 @@ export default function BarcodeScannerModal({
           throw new Error('Camera not supported on this device/browser');
         }
 
-        // Request high resolution with continuous autofocus
         const constraints = {
           video: {
             facingMode: { ideal: 'environment' },
@@ -196,7 +187,6 @@ export default function BarcodeScannerModal({
         try {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch {
-          // Fallback if strict constraints fail on older devices
           stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' }
           });
@@ -210,7 +200,6 @@ export default function BarcodeScannerModal({
         streamRef.current = stream;
         const videoTrack = stream.getVideoTracks()[0];
 
-        // Check camera hardware capabilities (torch, zoom)
         if (videoTrack?.getCapabilities) {
           try {
             const caps = videoTrack.getCapabilities();
@@ -227,7 +216,6 @@ export default function BarcodeScannerModal({
           videoRef.current.play().catch(() => {});
         }
 
-        // Initialize Native BarcodeDetector if available
         const ALL_NATIVE_FORMATS = [
           'itf',
           'code_128',
@@ -244,7 +232,6 @@ export default function BarcodeScannerModal({
           'pdf417'
         ];
 
-        let hasNativeDetector = false;
         if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
           try {
             let formatsToUse = ALL_NATIVE_FORMATS;
@@ -253,13 +240,11 @@ export default function BarcodeScannerModal({
               formatsToUse = ALL_NATIVE_FORMATS.filter(f => supported.includes(f));
             }
             barcodeDetector = new window.BarcodeDetector({ formats: formatsToUse });
-            hasNativeDetector = true;
           } catch (e) {
             console.warn('Native BarcodeDetector init failed, using ZXing:', e);
           }
         }
 
-        // Scan interval loop
         let isProcessing = false;
         intervalRef.current = setInterval(async () => {
           if (!active || isProcessing) return;
@@ -270,7 +255,6 @@ export default function BarcodeScannerModal({
           try {
             let detected = false;
 
-            // 1. Try Native BarcodeDetector
             if (barcodeDetector) {
               try {
                 const barcodes = await barcodeDetector.detect(video);
@@ -284,15 +268,12 @@ export default function BarcodeScannerModal({
               } catch {}
             }
 
-            // 2. Fallback/Augment with ZXing if not detected
             if (!detected && zxingReader && canvasRef.current) {
               try {
                 const canvas = canvasRef.current;
                 const vWidth = video.videoWidth;
                 const vHeight = video.videoHeight;
 
-                // Center crop (viewfinder region where user holds barcode)
-                // This maximizes effective resolution for small 1D barcodes
                 const cropWidth = Math.floor(vWidth * 0.75);
                 const cropHeight = Math.floor(vHeight * 0.45);
                 const cropX = Math.floor((vWidth - cropWidth) / 2);
@@ -315,14 +296,12 @@ export default function BarcodeScannerModal({
                     cropHeight
                   );
 
-                  // Try GlobalHistogramBinarizer first (superior on 1D barcodes with faint/thin lines)
                   let bitmap = new BinaryBitmap(new GlobalHistogramBinarizer(lumSource));
                   let result = null;
                   try {
                     result = zxingReader.decode(bitmap);
                   } catch {}
 
-                  // Fallback to HybridBinarizer if not found
                   if (!result) {
                     try {
                       bitmap = new BinaryBitmap(new HybridBinarizer(lumSource));
@@ -358,7 +337,6 @@ export default function BarcodeScannerModal({
     };
   }, [continuous, onDetected]);
 
-  // Toggle Torch / Flashlight
   const handleToggleTorch = async () => {
     const track = streamRef.current?.getVideoTracks()[0];
     if (track && hasTorch) {
@@ -372,7 +350,6 @@ export default function BarcodeScannerModal({
     }
   };
 
-  // Toggle Zoom Level
   const handleToggleZoom = async () => {
     const track = streamRef.current?.getVideoTracks()[0];
     if (track && hasZoom) {
@@ -386,7 +363,6 @@ export default function BarcodeScannerModal({
     }
   };
 
-  // Handle Manual Input Submit
   const handleManualSubmit = (e) => {
     e.preventDefault();
     if (manualCode.trim()) {
@@ -400,7 +376,6 @@ export default function BarcodeScannerModal({
       className="modal-overlay fixed inset-0 z-[11000] flex items-end sm:items-center justify-center bg-slate-950/70 backdrop-blur-xs p-0 sm:p-4 animate-fade-in select-none"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Continuous Scan Result Feedback Toast */}
       {lastScanResult && (
         <div className="fixed top-4 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-[12000] animate-fade-in pointer-events-none">
           {lastScanResult.success ? (
@@ -430,17 +405,13 @@ export default function BarcodeScannerModal({
         </div>
       )}
 
-      {/* Hidden processing canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Main Modal Panel: Bottom-sheet on mobile, centered card on desktop */}
       <div className="modal-panel w-full sm:max-w-md bg-white text-slate-800 border border-slate-200/80 shadow-2xl rounded-t-3xl sm:rounded-2xl overflow-hidden animate-slide-up sm:animate-fade-in flex flex-col max-h-[92vh]">
-        {/* Mobile Pull Bar Indicator */}
         <div className="flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
           <div className="w-12 h-1 rounded-full bg-slate-300" />
         </div>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0 shadow-xs">
@@ -473,9 +444,7 @@ export default function BarcodeScannerModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-3.5 sm:p-4 space-y-3 overflow-y-auto">
-          {/* Camera Viewport with Floating Controls */}
           <div className="relative w-full aspect-[4/3] sm:aspect-16/10 max-h-[40vh] bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner border border-slate-900">
             <video
               ref={videoRef}
@@ -485,7 +454,6 @@ export default function BarcodeScannerModal({
               autoPlay
             />
 
-            {/* Floating Camera Controls (Torch & Zoom) on Top-Right of Viewfinder */}
             <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-20">
               {hasTorch && (
                 <button
@@ -520,14 +488,12 @@ export default function BarcodeScannerModal({
               )}
             </div>
 
-            {/* Viewfinder Target Framing */}
             <div className="absolute inset-0 m-4 sm:m-6 pointer-events-none flex flex-col justify-between p-1">
               <div className="flex justify-between">
                 <div className="w-5 h-5 border-t-3 border-l-3 border-emerald-400 rounded-tl-lg shadow-[0_0_8px_#34d399]" />
                 <div className="w-5 h-5 border-t-3 border-r-3 border-emerald-400 rounded-tr-lg shadow-[0_0_8px_#34d399]" />
               </div>
 
-              {/* Glowing Laser Scanline */}
               <div className="relative w-full flex items-center justify-center">
                 <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-pulse" />
                 <span className="absolute text-[9px] font-extrabold text-emerald-300 bg-slate-950/70 px-2 py-0.5 rounded-full backdrop-blur-xs tracking-wider uppercase border border-emerald-400/30 shadow-xs">
@@ -541,7 +507,6 @@ export default function BarcodeScannerModal({
               </div>
             </div>
 
-            {/* Error Message if camera failed */}
             {error && (
               <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30">
                 <div className="w-11 h-11 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center border border-rose-500/20 mb-2">
@@ -556,7 +521,6 @@ export default function BarcodeScannerModal({
             )}
           </div>
 
-          {/* Clean Scanner Status */}
           <div className="flex items-center justify-between px-1 text-xs text-slate-500">
             <div className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
@@ -570,7 +534,6 @@ export default function BarcodeScannerModal({
             </span>
           </div>
 
-          {/* Manual Barcode Input Form */}
           <form onSubmit={handleManualSubmit} className="flex gap-2">
             <div className="relative flex-1">
               <Keyboard size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -591,7 +554,6 @@ export default function BarcodeScannerModal({
             </button>
           </form>
 
-          {/* Footer Actions */}
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
             {continuous ? (
               <button
@@ -621,7 +583,6 @@ export default function BarcodeScannerModal({
       </div>
     </div>
   );
-
 
   return targetNode ? createPortal(modalContent, targetNode) : modalContent;
 }

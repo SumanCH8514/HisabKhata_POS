@@ -312,9 +312,16 @@ export const uploadUserPhoto = async (file) => {
   }
 };
 
+export const getAIConfig = () => request('/api/ai/config');
+
+export const testAIModel = (params) => request('/api/ai/test', {
+  method: 'POST',
+  body: JSON.stringify(params)
+});
+
 export const generateAIDescription = async (params) => {
   const apiKey = localStorage.getItem('groq_api_key') || '';
-  const aiModel = localStorage.getItem('groq_model') || 'qwen/qwen3.6-27b';
+  const aiModel = localStorage.getItem('groq_model') || '';
   const res = await request('/api/ai/generate-description', {
     method: 'POST',
     body: JSON.stringify({ ...params, apiKey, aiModel })
@@ -330,6 +337,7 @@ export const generateAIDescription = async (params) => {
   }
   return res;
 };
+
 
 export const getUserSettings = () => request('/api/user-settings');
 export const saveUserSettings = (settings) => request('/api/user-settings', {

@@ -6,13 +6,14 @@ import {
   FileText, Sparkles, Building2, Bell, AlertCircle, Percent,
   Bluetooth, BluetoothConnected, BluetoothOff, QrCode, Zap,
   ChevronDown, LayoutTemplate, Landmark, CreditCard, PenTool,
-  CheckCircle2, Sliders, Eye, Mail, ShieldAlert
+  CheckCircle2, Sliders, Eye, Mail, ShieldAlert, ShieldCheck
 } from 'lucide-react';
 import {
   isBluetoothSupported, connectBluetoothPrinter, disconnectBluetoothPrinter,
   getConnectedPrinter, printTestReceipt
 } from '../utils/bluetoothPrinter.js';
-import { getUserSettings, saveUserSettings, isBusinessGstRegistered } from '../api/client.js';
+import { getUserSettings, saveUserSettings, isBusinessGstRegistered, getAIConfig, testAIModel } from '../api/client.js';
+
 import StaffManagement from './StaffManagement.jsx';
 import SmtpConfiguration from './SmtpConfiguration.jsx';
 import { toast } from '../utils/toast.js';
@@ -276,10 +277,17 @@ export default function Settings() {
     lowStockThreshold: 5,
     hideCostFromCashier: true,
     groqApiKey: localStorage.getItem('groq_api_key') || '',
-    groqModel: localStorage.getItem('groq_model') || 'qwen/qwen3.6-27b'
+    groqModel: localStorage.getItem('groq_model') || 'env_default'
   });
 
+  const [serverAIConfig, setServerAIConfig] = useState({ hasServerApiKey: false, serverModel: 'llama-3.3-70b-versatile', models: [] });
+  const [testingAI, setTestingAI] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [customModelInput, setCustomModelInput] = useState('');
+
+
   const [isGstRegistered, setIsGstRegistered] = useState(() => isBusinessGstRegistered());
+
 
   useEffect(() => {
     const onProfileUpdated = () => {
@@ -346,6 +354,14 @@ export default function Settings() {
   };
 
   useEffect(() => {
+    getAIConfig()
+      .then(cfg => {
+        if (cfg) {
+          setServerAIConfig(cfg);
+        }
+      })
+      .catch(() => {});
+
     const saved = localStorage.getItem('hk_pos_settings');
     if (saved) {
       try {
@@ -354,8 +370,11 @@ export default function Settings() {
           ...prev,
           ...parsed,
           groqApiKey: parsed.groqApiKey !== undefined ? parsed.groqApiKey : (localStorage.getItem('groq_api_key') || ''),
-          groqModel: parsed.groqModel || (localStorage.getItem('groq_model') || 'qwen/qwen3.6-27b')
+          groqModel: parsed.groqModel || (localStorage.getItem('groq_model') || 'env_default')
         }));
+        if (parsed.groqModel && !['env_default', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'deepseek-r1-distill-llama-70b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'].includes(parsed.groqModel)) {
+          setCustomModelInput(parsed.groqModel);
+        }
       } catch { }
     }
 
@@ -372,17 +391,53 @@ export default function Settings() {
           if (res.settings.enabledTaxSlabs) localStorage.setItem('hk_active_tax_rates', JSON.stringify(res.settings.enabledTaxSlabs));
           if (res.settings.taxCalculationMode) localStorage.setItem('hk_tax_calculation_mode', res.settings.taxCalculationMode);
           if (res.settings.groqApiKey) localStorage.setItem('groq_api_key', res.settings.groqApiKey);
-          if (res.settings.groqModel) localStorage.setItem('groq_model', res.settings.groqModel);
+          if (res.settings.groqModel) {
+            localStorage.setItem('groq_model', res.settings.groqModel);
+            if (!['env_default', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'deepseek-r1-distill-llama-70b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'].includes(res.settings.groqModel)) {
+              setCustomModelInput(res.settings.groqModel);
+            }
+          }
         }
       })
+
       .catch(() => {});
   }, []);
+
+  const handleTestAI = async () => {
+    setTestingAI(true);
+    setTestResult(null);
+    try {
+      const activeModel = settings.groqModel === 'custom'
+        ? (customModelInput.trim() || 'env_default')
+        : settings.groqModel;
+
+      const res = await testAIModel({
+        apiKey: settings.groqApiKey?.trim() || '',
+        aiModel: activeModel || 'env_default'
+      });
+      setTestResult(res);
+      if (res?.success) {
+        toast.success(`AI Model is operational (${res.latencyMs}ms)`);
+      } else {
+        toast.error(res?.error || 'AI test failed');
+      }
+    } catch (err) {
+      setTestResult({
+        success: false,
+        error: err.message || 'Connection error to AI service'
+      });
+      toast.error('AI test failed');
+    } finally {
+      setTestingAI(false);
+    }
+  };
 
   const handleSave = async (e) => {
     if (e) e.preventDefault();
     setSaving(true);
     try {
-      const updatedSettings = { ...settings };
+      const finalModel = settings.groqModel === 'custom' ? (customModelInput.trim() || 'env_default') : settings.groqModel;
+      const updatedSettings = { ...settings, groqModel: finalModel };
       if (!isGstRegistered) {
         updatedSettings.defaultTaxRate = '0';
         updatedSettings.enabledTaxSlabs = ['0'];
@@ -393,7 +448,7 @@ export default function Settings() {
       localStorage.setItem('hk_active_tax_rates', JSON.stringify(updatedSettings.enabledTaxSlabs));
       localStorage.setItem('hk_tax_calculation_mode', updatedSettings.taxCalculationMode || 'EXCLUSIVE');
       localStorage.setItem('groq_api_key', updatedSettings.groqApiKey || '');
-      localStorage.setItem('groq_model', updatedSettings.groqModel || 'qwen/qwen3.6-27b');
+      localStorage.setItem('groq_model', updatedSettings.groqModel || 'env_default');
       window.dispatchEvent(new Event('hk_settings_updated'));
 
       await saveUserSettings(updatedSettings);
@@ -408,6 +463,7 @@ export default function Settings() {
       setSaving(false);
     }
   };
+
 
   const toggleTaxSlab = (slab) => {
     setSettings(prev => {
@@ -1101,6 +1157,11 @@ export default function Settings() {
     }
 
     if (tabId === 'AI') {
+      const isCustomModel = !['env_default', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'deepseek-r1-distill-llama-70b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'].includes(settings.groqModel);
+      const effectiveDisplayModel = settings.groqModel === 'env_default'
+        ? (serverAIConfig.serverModel || 'llama-3.3-70b-versatile')
+        : (settings.groqModel === 'custom' ? (customModelInput || 'custom') : settings.groqModel);
+
       return (
         <div className="space-y-5 animate-fade-in">
           <TabHeader
@@ -1111,37 +1172,200 @@ export default function Settings() {
             saving={saving}
           />
 
-          <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Groq Cloud API Key</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 block">
+                  Groq Cloud API Key
+                </label>
+                {serverAIConfig.hasServerApiKey && !settings.groqApiKey && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60">
+                    <ShieldCheck size={11} className="text-emerald-600 dark:text-emerald-400" />
+                    Cloudflare Active
+                  </span>
+                )}
+              </div>
+
               <div className="relative">
                 <input
                   type="password"
-                  placeholder="gsk_..."
+                  placeholder={serverAIConfig.hasServerApiKey ? 'Using Cloudflare secret (GROQ_API_KEY) — type to override' : 'gsk_...'}
                   value={settings.groqApiKey}
                   onChange={(e) => setSettings({ ...settings, groqApiKey: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none font-mono focus:border-purple-500"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono focus:border-purple-500 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Get your free key from console.groq.com</p>
+
+              {serverAIConfig.hasServerApiKey && (
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-1.5 rounded-lg border border-emerald-200/60 dark:border-emerald-800/50 mt-1.5 font-medium">
+                  <ShieldCheck size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Configured in Cloudflare runtime variables (<code>GROQ_API_KEY</code>). Leave empty to use the server key, or enter a personal key here to override.</span>
+                </div>
+              )}
+
+              {!serverAIConfig.hasServerApiKey && (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  Get your free API key from console.groq.com or set <code>GROQ_API_KEY</code> in Cloudflare dashboard runtime variables.
+                </p>
+              )}
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1.5">AI Inference Model</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 block">
+                  AI Inference Model
+                </label>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  Active: <code className="font-mono text-purple-600 dark:text-purple-400">{effectiveDisplayModel}</code>
+                </span>
+              </div>
+
               <CustomSelect
-                value={settings.groqModel || 'qwen/qwen3.6-27b'}
-                onChange={(val) => setSettings({ ...settings, groqModel: val })}
+                value={isCustomModel ? 'custom' : (settings.groqModel || 'env_default')}
+                onChange={(val) => {
+                  if (val === 'custom') {
+                    setSettings({ ...settings, groqModel: 'custom' });
+                  } else {
+                    setSettings({ ...settings, groqModel: val });
+                  }
+                }}
                 options={[
-                  { value: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B (Recommended)' },
-                  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-                  { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Ultra Fast)' }
+                  {
+                    value: 'env_default',
+                    label: `Cloudflare Environment Default (${serverAIConfig.serverModel || 'llama-3.3-70b-versatile'})`
+                  },
+                  {
+                    value: 'llama-3.3-70b-versatile',
+                    label: 'Llama 3.3 70B Versatile (Flagship - Recommended)'
+                  },
+                  {
+                    value: 'llama-3.1-8b-instant',
+                    label: 'Llama 3.1 8B Instant (Ultra Fast)'
+                  },
+                  {
+                    value: 'deepseek-r1-distill-llama-70b',
+                    label: 'DeepSeek R1 Distill 70B (High Reasoning)'
+                  },
+                  {
+                    value: 'qwen/qwen3.8-27b',
+                    label: 'Qwen 3.8 27B (Catalog & Vision Specialist)'
+                  },
+                  {
+                    value: 'openai/gpt-oss-120b',
+                    label: 'OpenAI GPT-OSS 120B'
+                  },
+                  {
+                    value: 'openai/gpt-oss-20b',
+                    label: 'OpenAI GPT-OSS 20B (Fast)'
+                  },
+                  {
+                    value: 'custom',
+                    label: 'Custom Model ID (Specify manually)...'
+                  }
                 ]}
               />
+
+
+              {(settings.groqModel === 'custom' || isCustomModel) && (
+                <div className="mt-2 animate-fade-in">
+                  <input
+                    type="text"
+                    placeholder="Enter Groq Model ID (e.g. llama-3.2-11b-vision-preview)"
+                    value={customModelInput}
+                    onChange={(e) => {
+                      setCustomModelInput(e.target.value);
+                      setSettings({ ...settings, groqModel: e.target.value || 'custom' });
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-purple-200 dark:border-purple-800 rounded-xl outline-none font-mono focus:border-purple-500 bg-purple-50/30 dark:bg-purple-950/20 text-slate-800 dark:text-slate-100"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Enter any valid model ID supported by your Groq Cloud account.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                Set <code>GROQ_MODEL</code>, <code>GROQ_AI_MODEL</code>, or <code>AI_MODEL</code> in Cloudflare environment variables to change the default model globally.
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">Test AI Model & Connectivity</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                    Send a test ping to benchmark latency and verify Groq credentials and model availability.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestAI}
+                  disabled={testingAI}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+                >
+                  {testingAI ? (
+                    <RefreshCw size={14} className="animate-spin text-white" />
+                  ) : (
+                    <Zap size={14} className="text-white fill-white" />
+                  )}
+                  <span>{testingAI ? 'Testing Model...' : 'Test AI Model'}</span>
+                </button>
+              </div>
+
+              {testingAI && (
+                <div className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 rounded-xl text-xs text-purple-900 dark:text-purple-200 flex items-center gap-2.5 animate-pulse">
+                  <RefreshCw size={15} className="animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span>Connecting to Groq API and testing <strong>{effectiveDisplayModel}</strong>...</span>
+                </div>
+              )}
+
+              {testResult && !testingAI && (
+                testResult.success ? (
+                  <div className="p-3.5 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-900 dark:text-emerald-100 space-y-2 animate-fade-in shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
+                        <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>AI Model Operational</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                        {testResult.latencyMs} ms
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-emerald-800 dark:text-emerald-300 flex flex-wrap gap-x-4 gap-y-1">
+                      <span><strong>Model:</strong> <code className="font-mono text-[10px] bg-white/70 dark:bg-slate-900/70 px-1 py-0.5 rounded border border-emerald-200/50">{testResult.model}</code></span>
+                      <span><strong>Key Source:</strong> {testResult.keySource}</span>
+                      <span><strong>Model Source:</strong> {testResult.modelSource}</span>
+                    </div>
+
+                    {testResult.reply && (
+                      <div className="text-[11px] bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-emerald-100 dark:border-emerald-800/40 text-slate-700 dark:text-slate-200 font-medium">
+                        <span className="text-slate-400 dark:text-slate-500 text-[10px] block mb-0.5 font-bold uppercase tracking-wider">Test Inference Output</span>
+                        "{testResult.reply}"
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs text-rose-900 dark:text-rose-100 space-y-1.5 animate-fade-in shadow-xs">
+                    <div className="flex items-center gap-2 font-bold text-rose-800 dark:text-rose-300">
+                      <AlertCircle size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                      <span>AI Model Test Failed</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 dark:text-rose-300 font-mono bg-white/80 dark:bg-slate-900/80 p-2 rounded-lg border border-rose-100 dark:border-rose-800/40 break-words">
+                      {testResult.error}
+                    </p>
+                    <p className="text-[10px] text-rose-600 dark:text-rose-400">
+                      Please verify your Groq API key and confirm that the selected model is enabled on Groq Cloud.
+                    </p>
+                  </div>
+                )
+              )}
             </div>
           </div>
         </div>
       );
     }
+
 
     if (tabId === 'HARDWARE') {
       return (
