@@ -224,7 +224,6 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   const [pendingImageFile, setPendingImageFile] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(form.image_url || null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [error, setError]         = useState(null);
   const photoInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -269,7 +268,6 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
 
   const handleSelectImageFile = (file) => {
     if (!file || !file.type?.startsWith('image/')) return;
-    setError(null);
     if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(imagePreviewUrl);
     }
@@ -343,7 +341,10 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   }, []);
 
   const handleGenerateItemDesc = async () => {
-    if (!form.name?.trim()) return;
+    if (!form.name?.trim()) {
+      toast.warning('Please enter an item name first');
+      return;
+    }
     setAiLoading(true);
     try {
       const catName = categoryList.find(c => c.id === form.category_id)?.name || '';
@@ -357,9 +358,10 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
       });
       if (res?.description) {
         set('description', res.description);
+        toast.success('Description generated!');
       }
     } catch (err) {
-      setError(err.message || 'AI generation failed');
+      toast.error(err.message || 'AI generation failed');
     } finally {
       setAiLoading(false);
     }
@@ -507,9 +509,8 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
   };
 
   const doSave = async (keepOpen = false) => {
-    if (!form.name.trim()) return setError('Item name is required');
+    if (!form.name.trim()) return toast.error('Item name is required');
     keepOpen ? setSavingNew(true) : setSaving(true);
-    setError(null);
     try {
       let finalImageUrl = form.image_url;
       if (pendingImageFile) {
@@ -536,6 +537,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
           tax_rate: !isRegistered ? 0 : (Number(form.tax_rate) || 0),
           current_stock: itemType === 'service' ? 0 : (Number(form.current_stock) || 0) 
         });
+        toast.success('Item updated successfully');
       } else {
         await createItem({ 
           ...form, 
@@ -550,6 +552,7 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
           tax_rate: !isRegistered ? 0 : (Number(form.tax_rate) || 0),
           opening_stock: itemType === 'service' ? 0 : (Number(form.opening_stock) || 0) 
         });
+        toast.success('Item added successfully');
       }
       if (keepOpen) {
         if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
@@ -563,12 +566,11 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
         setPurchaseTaxType(getDefaultTaxMode(resetTaxRate));
         setItemType('item');
         setActiveTab('pricing');
-        setError(null);
       } else {
         onSave();
       }
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message || 'Failed to save item');
     } finally {
       setUploadingPhoto(false);
       setSaving(false);
@@ -612,10 +614,6 @@ function ItemModal({ item, categories, subCategories: propSubCats = [], units: u
 
         <div className="flex-1 overflow-y-auto px-4 py-3.5 sm:px-8 sm:py-5 space-y-4 sm:space-y-5">
           <div className="max-w-[1600px] mx-auto w-full space-y-4 sm:space-y-5">
-
-          {error && (
-            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">{error}</div>
-          )}
 
           <div className="border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4 bg-slate-50/50">
 
@@ -1544,12 +1542,10 @@ function AddSubCategoryModal({ categories, defaultCategoryId, onClose, onSave })
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const generateSubCategoryDesc = async () => {
-    if (!name.trim()) return setError('Please enter a sub-category name first');
+    if (!name.trim()) return toast.warning('Please enter a sub-category name first');
     setAiLoading(true);
-    setError(null);
     try {
       const parentCat = categories.find(c => String(c.id) === String(categoryId))?.name || '';
       const res = await generateAIDescription({
@@ -1560,28 +1556,29 @@ function AddSubCategoryModal({ categories, defaultCategoryId, onClose, onSave })
       });
       if (res?.description) {
         setDescription(res.description);
+        toast.success('Description generated!');
       }
     } catch (e) {
-      setError(e.message || 'AI generation failed');
+      toast.error(e.message || 'AI generation failed');
     } finally {
       setAiLoading(false);
     }
   };
 
   const handleSave = async () => {
-    if (!categoryId) return setError('Parent category is required');
-    if (!name.trim()) return setError('Sub-category name is required');
+    if (!categoryId) return toast.error('Parent category is required');
+    if (!name.trim()) return toast.error('Sub-category name is required');
     setSaving(true);
-    setError(null);
     try {
       const res = await createSubCategory({
         category_id: Number(categoryId),
         name: name.trim(),
         description: description.trim()
       });
+      toast.success('Sub-category created successfully');
       onSave(res);
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message || 'Failed to save sub-category');
     } finally {
       setSaving(false);
     }
@@ -1600,12 +1597,6 @@ function AddSubCategoryModal({ categories, defaultCategoryId, onClose, onSave })
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={18} /></button>
         </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">
-            {error}
-          </div>
-        )}
 
         <div className="space-y-4 text-xs font-semibold text-gray-500 text-left">
           <div>
@@ -1671,12 +1662,10 @@ function AddBrandModal({ onClose, onSave }) {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const generateBrandDesc = async () => {
-    if (!name.trim()) return setError('Please enter a brand name first');
+    if (!name.trim()) return toast.warning('Please enter a brand name first');
     setAiLoading(true);
-    setError(null);
     try {
       const res = await generateAIDescription({
         type: 'brand',
@@ -1685,23 +1674,24 @@ function AddBrandModal({ onClose, onSave }) {
       });
       if (res?.description) {
         setDescription(res.description);
+        toast.success('Description generated!');
       }
     } catch (e) {
-      setError(e.message || 'AI generation failed');
+      toast.error(e.message || 'AI generation failed');
     } finally {
       setAiLoading(false);
     }
   };
 
   const handleSave = async () => {
-    if (!name.trim()) return setError('Brand name is required');
+    if (!name.trim()) return toast.error('Brand name is required');
     setSaving(true);
-    setError(null);
     try {
       const res = await createBrand({ name: name.trim(), description: description.trim() });
+      toast.success('Brand created successfully');
       onSave(res);
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message || 'Failed to save brand');
     } finally {
       setSaving(false);
     }
@@ -1720,12 +1710,6 @@ function AddBrandModal({ onClose, onSave }) {
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={18} /></button>
         </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">
-            {error}
-          </div>
-        )}
 
         <div className="space-y-4 text-xs font-semibold text-gray-500 text-left">
           <div>
@@ -1776,12 +1760,10 @@ function CategoryModal({ onClose, onSave }) {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const generateCategoryDesc = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) return toast.warning('Please enter a category name first');
     setAiLoading(true);
-    setError(null);
     try {
       const res = await generateAIDescription({
         type: 'category',
@@ -1789,23 +1771,24 @@ function CategoryModal({ onClose, onSave }) {
       });
       if (res?.description) {
         setDescription(res.description);
+        toast.success('Description generated!');
       }
     } catch (e) {
-      setError(e.message || 'AI generation failed');
+      toast.error(e.message || 'AI generation failed');
     } finally {
       setAiLoading(false);
     }
   };
 
   const handleSave = async () => {
-    if (!name.trim()) return setError('Category name is required');
+    if (!name.trim()) return toast.error('Category name is required');
     setSaving(true);
-    setError(null);
     try {
       const res = await createCategory({ name: name.trim(), description: description.trim() });
+      toast.success('Category created successfully');
       onSave(res);
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message || 'Failed to save category');
     } finally {
       setSaving(false);
     }
@@ -1824,12 +1807,6 @@ function CategoryModal({ onClose, onSave }) {
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={18} /></button>
         </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">
-            {error}
-          </div>
-        )}
 
         <div className="space-y-4 text-xs font-semibold text-gray-500">
           <div>
@@ -1884,18 +1861,17 @@ function AddUnitModal({ onClose, onSave }) {
   const [name, setName] = useState('');
   const [shortName, setShortName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
 
   const handleSave = async () => {
-    if (!name.trim()) return setError('Unit name is required');
-    if (!shortName.trim()) return setError('Short name is required');
+    if (!name.trim()) return toast.error('Unit name is required');
+    if (!shortName.trim()) return toast.error('Short name is required');
     setSaving(true);
-    setError(null);
     try {
       await createUnit({ name: name.trim(), short_name: shortName.trim() });
+      toast.success('Unit created successfully');
       onSave();
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message || 'Failed to save unit');
     } finally {
       setSaving(false);
     }
@@ -1914,10 +1890,6 @@ function AddUnitModal({ onClose, onSave }) {
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={18} /></button>
         </div>
-
-        {error && (
-          <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">{error}</div>
-        )}
 
         <div className="space-y-3">
           <div>
@@ -1957,20 +1929,19 @@ function AddConversionModal({ units, onClose, onSave }) {
   const [toUnitId, setToUnitId] = useState('');
   const [rate, setRate] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
 
   const handleSave = async () => {
-    if (!fromUnitId) return setError('From unit is required');
-    if (!toUnitId) return setError('To unit is required');
-    if (fromUnitId === toUnitId) return setError('From and To units must be different');
-    if (!rate || isNaN(rate) || Number(rate) <= 0) return setError('Enter a valid positive rate');
+    if (!fromUnitId) return toast.error('From unit is required');
+    if (!toUnitId) return toast.error('To unit is required');
+    if (fromUnitId === toUnitId) return toast.error('From and To units must be different');
+    if (!rate || isNaN(rate) || Number(rate) <= 0) return toast.error('Enter a valid positive rate');
     setSaving(true);
-    setError(null);
     try {
       await createUnitConversion({ from_unit_id: Number(fromUnitId), to_unit_id: Number(toUnitId), rate: Number(rate) });
+      toast.success('Unit conversion created successfully');
       onSave();
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message || 'Failed to save conversion');
     } finally {
       setSaving(false);
     }
@@ -1991,10 +1962,6 @@ function AddConversionModal({ units, onClose, onSave }) {
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={18} /></button>
         </div>
-
-        {error && (
-          <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">{error}</div>
-        )}
 
         <div className="space-y-3">
           <div>
@@ -2051,7 +2018,6 @@ function AddConversionModal({ units, onClose, onSave }) {
 function ImportModal({ categories, units, onClose, onSave }) {
   const [file, setFile] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
-  const [error, setError] = useState(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [summary, setSummary] = useState(null);
@@ -2060,7 +2026,6 @@ function ImportModal({ categories, units, onClose, onSave }) {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
     setFile(selectedFile);
-    setError(null);
     setSummary(null);
 
     const reader = new FileReader();
@@ -2069,7 +2034,7 @@ function ImportModal({ categories, units, onClose, onSave }) {
         const text = evt.target.result;
         const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
         if (lines.length <= 1) {
-          setError('The uploaded CSV file is empty or missing data rows.');
+          toast.error('The uploaded CSV file is empty or missing data rows.');
           return;
         }
 
@@ -2158,12 +2123,12 @@ function ImportModal({ categories, units, onClose, onSave }) {
         }
 
         if (rows.length === 0) {
-          setError('No valid product rows could be found in this CSV.');
+          toast.error('No valid product rows could be found in this CSV.');
         } else {
           setParsedRows(rows);
         }
       } catch (err) {
-        setError('Failed to parse CSV file: ' + err.message);
+        toast.error('Failed to parse CSV file: ' + err.message);
       }
     };
     reader.readAsText(selectedFile);
@@ -2172,7 +2137,6 @@ function ImportModal({ categories, units, onClose, onSave }) {
   const handleStartImport = async () => {
     if (parsedRows.length === 0) return;
     setImporting(true);
-    setError(null);
     setProgress({ current: 0, total: parsedRows.length });
 
     let success = 0;
@@ -2209,6 +2173,11 @@ function ImportModal({ categories, units, onClose, onSave }) {
 
     setImporting(false);
     setSummary({ success, failed });
+    if (success > 0) {
+      toast.success(`Import finished: ${success} items imported${failed ? `, ${failed} failed` : ''}`);
+    } else {
+      toast.error(`Import failed: ${failed} items could not be imported`);
+    }
   };
 
   return (
@@ -2230,11 +2199,6 @@ function ImportModal({ categories, units, onClose, onSave }) {
         </div>
 
         <div className="py-4 space-y-4 overflow-y-auto flex-1">
-          {error && (
-            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold">
-              {error}
-            </div>
-          )}
 
           {summary ? (
             <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-3">
@@ -2387,8 +2351,8 @@ export default function Inventory() {
   const [unitMenuOpen, setUnitMenuOpen] = useState(null); // unit id with open menu
   
   const [deleting, setDeleting]         = useState(null);
-  const [sortKey, setSortKey]           = useState('name');
-  const [sortDir, setSortDir]           = useState('asc');
+  const [sortKey, setSortKey]           = useState('id');
+  const [sortDir, setSortDir]           = useState('desc');
   const [searchParams]                  = useSearchParams();
 
   const load = useCallback(async () => {
@@ -2440,6 +2404,9 @@ export default function Inventory() {
       await deleteItem(id);
       setItems(prev => prev.filter(i => i.id !== id));
       if (selectedItem?.id === id) setSelectedItem(null);
+      toast.success('Item deleted successfully');
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete item');
     } finally {
       setDeleting(null);
     }
@@ -2548,11 +2515,24 @@ export default function Inventory() {
   };
 
   const toggleSort = (key) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(key); setSortDir('asc'); }
+    if (sortKey === key) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else {
+        setSortKey('id');
+        setSortDir('desc');
+      }
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
   };
 
   const sorted = [...items].sort((a, b) => {
+    if (sortKey === 'id' || sortKey === 'created_at') {
+      const at = a.created_at ? new Date(a.created_at).getTime() : (Number(a.id) || 0);
+      const bt = b.created_at ? new Date(b.created_at).getTime() : (Number(b.id) || 0);
+      return sortDir === 'asc' ? at - bt : bt - at;
+    }
     const av = a[sortKey] ?? '';
     const bv = b[sortKey] ?? '';
     const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
@@ -2799,7 +2779,7 @@ export default function Inventory() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-gray-900 leading-snug line-clamp-2" title={item.name}>
+                        <p className="text-xs font-bold text-gray-900 leading-snug truncate" title={item.name}>
                           {item.name}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400 font-medium flex-wrap">
@@ -2809,15 +2789,6 @@ export default function Inventory() {
                             <span className="truncate max-w-[90px]">
                               {categories.find(c => c.id === item.category_id)?.name}
                             </span>
-                          )}
-                          {(item.rack_location || item.rack || item.shelf || item.aisle) && (
-                            <>
-                              <span>•</span>
-                              <span className="inline-flex items-center gap-0.5 text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold text-[9.5px] border border-emerald-200/80 truncate max-w-[130px]" title={item.rack_location || `Rack: ${item.rack || ''} Shelf: ${item.shelf || ''}`}>
-                                <MapPin size={9} className="shrink-0 text-emerald-600" />
-                                <span className="truncate">{item.rack_location || [item.aisle ? `A:${item.aisle}` : null, item.rack ? `R:${item.rack}` : null, item.shelf ? `S:${item.shelf}` : null].filter(Boolean).join(' ')}</span>
-                              </span>
-                            </>
                           )}
                         </div>
                       </div>
@@ -2842,11 +2813,11 @@ export default function Inventory() {
           </div>
 
           {/* Right Panel - Item Details or Empty State */}
-          <div className="flex-1 w-full bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm min-h-[580px]">
+          <div className="flex-1 min-w-0 w-full bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm min-h-[580px]">
             {selectedItem ? (
-              <div className="w-full flex flex-col text-left space-y-5">
+              <div className="w-full min-w-0 flex flex-col text-left space-y-5">
                 
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 sm:gap-4 pb-4 sm:pb-5 border-b border-gray-150">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 sm:gap-4 pb-4 sm:pb-5 border-b border-gray-150 min-w-0 w-full">
                   <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full sm:flex-1">
                     {selectedItem.image_url ? (
                       <img 
@@ -2859,8 +2830,8 @@ export default function Inventory() {
                         <Package size={28} strokeWidth={1.8} />
                       </div>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-sm sm:text-base lg:text-lg font-black text-slate-900 leading-snug break-words">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <h2 className="text-sm sm:text-base lg:text-lg font-black text-slate-900 leading-snug truncate block max-w-full" title={selectedItem.name}>
                         {selectedItem.name}
                       </h2>
                       <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
@@ -3209,9 +3180,14 @@ export default function Inventory() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (confirm(`Delete category "${cat.name}" and its subcategories?`)) {
-                                await deleteCategory(cat.id);
-                                if (selectedCategory?.id === cat.id) setSelectedCategory(null);
-                                load();
+                                try {
+                                  await deleteCategory(cat.id);
+                                  if (selectedCategory?.id === cat.id) setSelectedCategory(null);
+                                  toast.success('Category deleted');
+                                  load();
+                                } catch (err) {
+                                  toast.error(err.message || 'Failed to delete category');
+                                }
                               }
                             }}
                             className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
@@ -3262,9 +3238,14 @@ export default function Inventory() {
                                       onClick={async (e) => {
                                         e.stopPropagation();
                                         if (confirm(`Delete sub-category "${sc.name}"?`)) {
-                                          await deleteSubCategory(sc.id);
-                                          if (selectedSubCategory?.id === sc.id) setSelectedSubCategory(null);
-                                          load();
+                                          try {
+                                            await deleteSubCategory(sc.id);
+                                            if (selectedSubCategory?.id === sc.id) setSelectedSubCategory(null);
+                                            toast.success('Sub-category deleted');
+                                            load();
+                                          } catch (err) {
+                                            toast.error(err.message || 'Failed to delete sub-category');
+                                          }
                                         }
                                       }}
                                       className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
@@ -3551,9 +3532,14 @@ export default function Inventory() {
                     <button
                       onClick={async () => {
                         if (confirm(`Delete brand ${selectedBrand.name}?`)) {
-                          await deleteBrand(selectedBrand.id);
-                          setSelectedBrand(null);
-                          load();
+                          try {
+                            await deleteBrand(selectedBrand.id);
+                            setSelectedBrand(null);
+                            toast.success('Brand deleted');
+                            load();
+                          } catch (err) {
+                            toast.error(err.message || 'Failed to delete brand');
+                          }
                         }
                       }}
                       className="p-2 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 transition-colors"
@@ -3694,7 +3680,18 @@ export default function Inventory() {
                           <div className="fixed inset-0 z-40" onClick={() => setUnitMenuOpen(null)} />
                           <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[100px] py-1">
                             <button
-                              onClick={async () => { setUnitMenuOpen(null); if (confirm('Delete this unit?')) { await deleteUnit(unit.id); load(); } }}
+                              onClick={async () => {
+                                setUnitMenuOpen(null);
+                                if (confirm('Delete this unit?')) {
+                                  try {
+                                    await deleteUnit(unit.id);
+                                    toast.success('Unit deleted');
+                                    load();
+                                  } catch (err) {
+                                    toast.error(err.message || 'Failed to delete unit');
+                                  }
+                                }
+                              }}
                               className="w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
                             >
                               <Trash2 size={12} /> Delete
@@ -3774,7 +3771,17 @@ export default function Inventory() {
                         <td className="py-3 px-3 text-xs font-black text-gray-800">{conv.rate}</td>
                         <td className="py-3 px-3 text-right">
                           <button
-                            onClick={async () => { if (confirm('Delete this conversion?')) { await deleteUnitConversion(conv.id); load(); } }}
+                            onClick={async () => {
+                              if (confirm('Delete this conversion?')) {
+                                try {
+                                  await deleteUnitConversion(conv.id);
+                                  toast.success('Unit conversion deleted');
+                                  load();
+                                } catch (err) {
+                                  toast.error(err.message || 'Failed to delete conversion');
+                                }
+                              }
+                            }}
                             className="p-1.5 border border-red-100 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
                           >
                             <Trash2 size={12} />

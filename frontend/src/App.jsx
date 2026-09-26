@@ -48,6 +48,7 @@ export default function App() {
     <>
       <Toaster
         position="top-right"
+        containerStyle={{ zIndex: 99999 }}
         toastOptions={{
           className: 'dark:!bg-slate-900 dark:!text-slate-100 dark:!border-slate-800 !border !border-slate-200 !text-slate-900 !shadow-xl !rounded-2xl !px-4 !py-3 !text-sm !font-medium',
           duration: 4000,

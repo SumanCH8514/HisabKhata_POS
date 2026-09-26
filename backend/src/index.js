@@ -2227,7 +2227,7 @@ app.get('/api/items', authMiddleware, companyScopeMiddleware, async (c) => {
     if (lowStock) {
       query += ` AND i.current_stock <= i.low_stock_alert`;
     }
-    query += ` ORDER BY i.name ASC`;
+    query += ` ORDER BY i.id DESC`;
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all();
     return c.json(results);
@@ -4329,7 +4329,7 @@ app.post('/api/ai/generate-description', authMiddleware, async (c) => {
           }
         ],
         temperature: 0.6,
-        max_completion_tokens: 2048,
+        max_completion_tokens: 300,
         top_p: 0.95
       })
     });
