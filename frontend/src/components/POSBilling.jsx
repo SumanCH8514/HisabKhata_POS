@@ -12,6 +12,8 @@ import { getItems, getParties, createParty, createInvoice, sendInvoiceReceipt, f
 import { getConnectedPrinter, printEscPosInvoice } from '../utils/bluetoothPrinter.js';
 import { toast } from '../utils/toast.js';
 import { getCachedData, prependCachedItem } from '../utils/cache.js';
+import { saveLocalItems, getLocalItems, saveLocalParties, getLocalParties, saveLocalInvoice, getNextOfflineInvoiceNumber, generateClientUuid } from '../utils/localDb.js';
+import { initSyncManager, onSyncStatusChange, processSyncQueue } from '../utils/syncManager.js';
 import BarcodeScannerModal from './BarcodeScannerModal';
 
 const playScannerBeep = () => {
@@ -89,6 +91,7 @@ export default function POSBilling() {
   const [customReceivedAmount, setCustomReceivedAmount] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
   const [heldBills, setHeldBills] = useState([]);
+  const [syncStatus, setSyncStatus] = useState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true, isSyncing: false, pendingCount: 0 });
   const [checkoutSuccess, setCheckoutSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
@@ -230,14 +233,25 @@ export default function POSBilling() {
         const freshParties = partyList || [];
         setItems(freshItems);
         setParties(freshParties);
+        saveLocalItems(freshItems);
+        saveLocalParties(freshParties);
       })
-      .catch(console.error)
+      .catch(async () => {
+        const localItems = await getLocalItems();
+        if (localItems.length > 0) setItems(localItems);
+        const localParties = await getLocalParties('CUSTOMER');
+        if (localParties.length > 0) setParties(localParties);
+      })
       .finally(() => {
         if (!isSilent) setLoading(false);
       });
   };
 
   useEffect(() => {
+    initSyncManager();
+    const unsub = onSyncStatusChange((status) => {
+      setSyncStatus(status);
+    });
     loadData();
     const handleFocus = () => {
       loadData(true);
@@ -248,6 +262,7 @@ export default function POSBilling() {
       try { setHeldBills(JSON.parse(savedHeld)); } catch { }
     }
     return () => {
+      unsub();
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
@@ -482,8 +497,15 @@ export default function POSBilling() {
     if (cart.length === 0) return;
     setSubmitting(true);
     const posCfg = getPosSettings();
-    const prefix = posCfg.invoicePrefix || 'POS-';
-    const invNo = `${prefix}${Date.now().toString().slice(-6)}`;
+    const isOnline = navigator.onLine;
+    let invNo = '';
+    if (isOnline) {
+      const prefix = posCfg.invoicePrefix || 'POS-';
+      invNo = `${prefix}${Date.now().toString().slice(-6)}`;
+    } else {
+      invNo = await getNextOfflineInvoiceNumber();
+    }
+
     const paid = paidAmount;
     const due = dueAmount;
 
@@ -500,39 +522,65 @@ export default function POSBilling() {
         ? (due > 0 ? `Custom (Paid: ${fmtCurrency(paid)}, Due: ${fmtCurrency(due)})` : 'Custom Received')
         : paymentMode;
 
+    const client_uuid = generateClientUuid();
+    const invoicePayload = {
+      type: 'SALES',
+      invoice_number: invNo,
+      client_uuid,
+      date: new Date().toISOString().slice(0, 10),
+      party_id: selectedParty?.id || null,
+      customer_email: selectedParty?.email || null,
+      customer_name: selectedParty?.name || null,
+      customer_phone: selectedParty?.phone || null,
+      subtotal,
+      tax_amount: isRegistered ? taxTotal : 0,
+      total_amount: grandTotal,
+      amount_paid: paid,
+      payment_mode: actualPaymentMode,
+      items: cart.map(c => ({
+        item_id: c.id,
+        item_name: c.name,
+        unit: c.unit,
+        quantity: c.quantity,
+        rate: (isInclusive && isRegistered && (c.tax_rate || 0) > 0) ? (c.rate / (1 + (c.tax_rate || 0) / 100)) : c.rate,
+        tax_rate: isRegistered ? (c.tax_rate || 0) : 0,
+        mrp: (c.mrp !== undefined && c.mrp !== null && Number(c.mrp) > 0) ? Number(c.mrp) : (c.rate || 0)
+      }))
+    };
+
     try {
-      const res = await createInvoice({
-        type: 'SALES',
-        invoice_number: invNo,
-        date: new Date().toISOString().slice(0, 10),
-        party_id: selectedParty?.id || null,
-        customer_email: selectedParty?.email || null,
-        customer_name: selectedParty?.name || null,
-        customer_phone: selectedParty?.phone || null,
-        subtotal,
-        tax_amount: isRegistered ? taxTotal : 0,
-        total_amount: grandTotal,
-        amount_paid: paid,
-        payment_mode: actualPaymentMode,
-        items: cart.map(c => ({
-          item_id: c.id,
-          item_name: c.name,
-          unit: c.unit,
-          quantity: c.quantity,
-          rate: (isInclusive && isRegistered && (c.tax_rate || 0) > 0) ? (c.rate / (1 + (c.tax_rate || 0) / 100)) : c.rate,
-          tax_rate: isRegistered ? (c.tax_rate || 0) : 0,
-          mrp: (c.mrp !== undefined && c.mrp !== null && Number(c.mrp) > 0) ? Number(c.mrp) : (c.rate || 0)
-        }))
-      });
+      let res = null;
+      let savedOffline = false;
+
+      if (isOnline) {
+        try {
+          res = await createInvoice(invoicePayload);
+        } catch (networkErr) {
+          if (!navigator.onLine || networkErr?.status === 408 || networkErr?.message?.includes('Failed to fetch') || networkErr?.message?.includes('NetworkError')) {
+            savedOffline = true;
+          } else {
+            throw networkErr;
+          }
+        }
+      } else {
+        savedOffline = true;
+      }
+
+      if (savedOffline) {
+        res = await saveLocalInvoice(invoicePayload);
+        processSyncQueue();
+      }
 
       setCheckoutSuccess({
-        invoice_id: res.invoice_id,
+        invoice_id: res?.invoice_id || client_uuid,
+        client_uuid,
+        is_offline: savedOffline,
         invoice_number: invNo,
         date: new Date().toISOString().slice(0, 10),
         party_name: selectedParty?.name || '',
-        recipient_email: res.recipient_email || selectedParty?.email || '',
-        email_sent: res.email_sent,
-        email_error: res.email_error,
+        recipient_email: res?.recipient_email || selectedParty?.email || '',
+        email_sent: res?.email_sent || false,
+        email_error: res?.email_error,
         subtotal,
         tax_amount: isRegistered ? taxTotal : 0,
         total_amount: grandTotal,
@@ -541,16 +589,19 @@ export default function POSBilling() {
         payment_mode: actualPaymentMode,
         items: cart
       });
+
       setEmailInput(selectedParty?.email || '');
       setEmailSendStatus(null);
 
-      if (res.email_sent) {
+      if (savedOffline) {
+        toast.success(`⚡ Offline Invoice #${invNo} created! Receipt ready to print. Will auto-sync when online.`);
+      } else if (res?.email_sent) {
         toast.success(`Invoice #${invNo} created & receipt emailed to ${res.recipient_email}!`);
       } else {
         toast.success(`Invoice #${invNo} generated successfully!`);
       }
 
-      if (posCfg.autoPrintReceipt) {
+      if (posCfg.autoPrintReceipt && !savedOffline) {
         const printUrl = posCfg.preferredPrinter === 'LASER_A4'
           ? `/invoice/${res.invoice_id}/print`
           : `/invoice/${res.invoice_id}/print-thermal`;
@@ -561,7 +612,7 @@ export default function POSBilling() {
       setSelectedParty(null);
       setCustomReceivedAmount('');
       setAmountPaid('');
-      loadData();
+      loadData(true);
     } catch (err) {
       toast.error(err.message || 'Error processing checkout');
     } finally {
@@ -648,6 +699,38 @@ export default function POSBilling() {
               ))}
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => processSyncQueue()}
+            title={!syncStatus.isOnline ? `Offline Mode - ${syncStatus.pendingCount} bills queued locally` : (syncStatus.pendingCount > 0 ? `${syncStatus.pendingCount} offline bills ready to sync. Click to sync now.` : 'Online - All data synchronized')}
+            className={`px-2 py-1.5 sm:px-2.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
+              !syncStatus.isOnline
+                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                : syncStatus.pendingCount > 0
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : 'bg-slate-50 text-slate-600 border-slate-200'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${
+              !syncStatus.isOnline
+                ? 'bg-amber-500 animate-pulse'
+                : syncStatus.isSyncing
+                  ? 'bg-sky-500 animate-ping'
+                  : syncStatus.pendingCount > 0
+                    ? 'bg-emerald-500 animate-pulse'
+                    : 'bg-emerald-500'
+            }`} />
+            <span className="text-[11px]">
+              {!syncStatus.isOnline
+                ? (syncStatus.pendingCount > 0 ? `Offline (${syncStatus.pendingCount})` : 'Offline')
+                : syncStatus.isSyncing
+                  ? 'Syncing…'
+                  : syncStatus.pendingCount > 0
+                    ? `Sync (${syncStatus.pendingCount})`
+                    : 'Online'}
+            </span>
+          </button>
 
           <button
             type="button"

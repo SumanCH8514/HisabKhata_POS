@@ -97,6 +97,8 @@ async function runAutoMigrations(db) {
     `ALTER TABLE invoices ADD COLUMN due_date TEXT`,
     `ALTER TABLE invoices ADD COLUMN terms TEXT`,
     `ALTER TABLE invoices ADD COLUMN discount_amount REAL DEFAULT 0`,
+    `ALTER TABLE invoices ADD COLUMN client_uuid TEXT`,
+    `CREATE INDEX IF NOT EXISTS idx_invoices_client_uuid ON invoices(client_uuid)`,
     `ALTER TABLE invoice_items ADD COLUMN mrp REAL DEFAULT 0`,
     `ALTER TABLE companies ADD COLUMN website TEXT`,
     `ALTER TABLE companies ADD COLUMN upi_id TEXT`,
@@ -284,6 +286,9 @@ app.use('/api/*', async (c, next) => {
   }
   await next();
 });
+
+app.get('/api/ping', (c) => c.json({ status: 'ok', time: Date.now() }));
+
 
 // Helper to authenticate user via JWT
 const authMiddleware = async (c, next) => {
@@ -2993,9 +2998,17 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
       : total_amount;
     const balance_due = Math.max(0, total_amount - Number(amount_paid));
 
+    const client_uuid = body.client_uuid || null;
+    if (client_uuid) {
+      const existing = await db.prepare(`SELECT id, invoice_number FROM invoices WHERE client_uuid = ? AND company_id = ?`).bind(client_uuid, companyId).first();
+      if (existing) {
+        return c.json({ success: true, invoice_id: existing.id, invoice_number: existing.invoice_number, already_existed: true });
+      }
+    }
+
     const invRes = await db.prepare(`
-      INSERT INTO invoices (company_id, type, invoice_number, date, party_id, subtotal, tax_amount, total_amount, amount_paid, payment_mode, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoices (company_id, type, invoice_number, date, party_id, subtotal, tax_amount, total_amount, amount_paid, payment_mode, notes, client_uuid)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       companyId,
       type.toUpperCase(),
@@ -3007,7 +3020,8 @@ app.post('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
       total_amount,
       Number(amount_paid),
       payment_mode || 'CASH',
-      notes || null
+      notes || null,
+      client_uuid
     ).run();
 
     const invoiceId = invRes.meta?.last_row_id;
