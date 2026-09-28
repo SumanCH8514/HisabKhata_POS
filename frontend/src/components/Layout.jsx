@@ -863,7 +863,7 @@ export default function Layout() {
           </div>
         )}
 
-        <main className={`flex-1 ${location.pathname.startsWith('/pos') ? 'p-2 sm:p-2.5 overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto p-4 sm:p-6'} bg-[#f6f8fa] dark:bg-[#070b14] print:bg-white print:p-0 print:m-0 print:overflow-visible`}>
+        <main className={`flex-1 w-full ${location.pathname.startsWith('/pos') ? 'p-2 sm:p-2.5 overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto p-4 sm:p-6'} bg-[#f6f8fa] dark:bg-[#070b14] print:bg-white print:p-0 print:m-0 print:overflow-visible`}>
           <Outlet />
         </main>
       </div>

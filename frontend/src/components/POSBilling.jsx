@@ -652,7 +652,7 @@ export default function POSBilling() {
   return (
     <div
       ref={containerRef}
-      className={`h-full flex flex-col gap-2 max-w-[1600px] mx-auto min-w-0 max-lg:mx-1 ${isFullscreen ? 'p-3 sm:p-4 bg-[#f6f8fa] w-full h-full overflow-hidden' : 'overflow-hidden'
+      className={`w-full h-full flex flex-col gap-2 max-w-[1600px] mx-auto min-w-0 max-lg:mx-1 ${isFullscreen ? 'p-3 sm:p-4 bg-[#f6f8fa] overflow-hidden' : 'overflow-hidden'
         }`}
     >
 
@@ -672,7 +672,7 @@ export default function POSBilling() {
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shadow-xs shrink-0">
+      <div className="w-full flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shadow-xs shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
             <ShoppingCart size={14} />
@@ -766,11 +766,11 @@ export default function POSBilling() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-2.5 flex-1 min-h-0 overflow-hidden">
+      <div className="w-full flex flex-col lg:grid lg:grid-cols-12 gap-2.5 flex-1 min-h-0 overflow-hidden">
 
-        <div className={`${isFullscreen ? 'lg:col-span-8 2xl:col-span-9' : 'lg:col-span-8'} ${mobileCartState === 'full' ? 'max-lg:hidden' : 'flex flex-col gap-2 flex-1 min-h-0 overflow-hidden'}`}>
+        <div className={`w-full ${isFullscreen ? 'lg:col-span-8 2xl:col-span-9' : 'lg:col-span-8'} ${mobileCartState === 'full' ? 'max-lg:hidden' : 'flex flex-col gap-2 flex-1 min-h-0 overflow-hidden'}`}>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-2 shadow-xs shrink-0 space-y-1.5">
+          <div className="w-full bg-white border border-slate-200 rounded-xl p-2 shadow-xs shrink-0 space-y-1.5">
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-2 text-slate-400" />
               <input
@@ -807,7 +807,7 @@ export default function POSBilling() {
             </div>
           </div>
 
-          <div className={`flex-1 overflow-y-auto pr-1 grid ${isFullscreen ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'} gap-1.5 content-start auto-rows-max min-h-0 select-none`}>
+          <div className={`w-full flex-1 overflow-y-auto pr-1 grid ${isFullscreen ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'} gap-1.5 content-start auto-rows-max min-h-0 select-none`}>
             {loading && items.length === 0 ? (
               Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="bg-white border border-slate-100 rounded-lg p-1.5 flex flex-col gap-2 animate-pulse">
@@ -934,7 +934,7 @@ export default function POSBilling() {
           <div className="lg:hidden h-[180px] shrink-0 pointer-events-none" />
         )}
 
-        <div className={`${isFullscreen ? 'lg:col-span-4 2xl:col-span-3' : 'lg:col-span-4'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-col ${
+        <div className={`w-full ${isFullscreen ? 'lg:col-span-4 2xl:col-span-3' : 'lg:col-span-4'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-col ${
           mobileCartState !== 'collapsed'
             ? 'max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50 max-lg:rounded-t-2xl max-lg:shadow-2xl max-lg:border-t max-lg:border-slate-300 dark:max-lg:border-slate-700 max-lg:max-h-[82vh] max-lg:overflow-y-auto'
             : 'max-lg:mt-auto max-lg:h-auto max-lg:shrink-0'
