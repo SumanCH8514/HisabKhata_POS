@@ -652,7 +652,7 @@ export default function POSBilling() {
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full flex flex-col gap-2 max-w-[1600px] mx-auto min-w-0 max-lg:mx-1 ${isFullscreen ? 'p-3 sm:p-4 bg-[#f6f8fa] overflow-hidden' : 'overflow-hidden'
+      className={`w-full h-full flex flex-col gap-2 max-w-[1600px] mx-auto min-w-0 ${isFullscreen ? 'p-3 sm:p-4 bg-[#f6f8fa] overflow-hidden' : 'overflow-hidden'
         }`}
     >
 
@@ -888,7 +888,7 @@ export default function POSBilling() {
                       {item.current_stock <= 0 ? 'Out' : `${item.current_stock}${item.unit ? ' ' + item.unit : ''}`}
                     </span>
                     {(item.rack_location || item.rack || item.shelf) && (
-                      <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-slate-900/80 text-white backdrop-blur-2xs truncate max-w-[65px]" title={item.rack_location || `Rack: ${item.rack || ''} Shelf: ${item.shelf || ''}`}>
+                      <span className="hidden sm:inline-block text-[7.5px] font-bold px-1 py-0.5 rounded bg-slate-900/80 text-white backdrop-blur-2xs truncate max-w-[65px]" title={item.rack_location || `Rack: ${item.rack || ''} Shelf: ${item.shelf || ''}`}>
                         📍 {item.rack ? `R:${item.rack}` : (item.rack_location || '')}
                       </span>
                     )}
