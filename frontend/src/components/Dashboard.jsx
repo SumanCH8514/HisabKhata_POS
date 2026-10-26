@@ -8,29 +8,114 @@ import {
   BarChart3, Users, ChevronRight, Phone, MessageSquare,
   FileSpreadsheet, ArrowUp, ArrowDown, Wallet, Box, Eye
 } from 'lucide-react';
-import { getDashboard, fmtCurrency, fmt } from '../api/client.js';
+import { getDashboard, swrDashboard, fmtCurrency, fmt } from '../api/client.js';
+import { getCachedData } from '../utils/cache.js';
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4 sm:space-y-5 max-w-[1600px] mx-auto pb-12 animate-pulse">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:px-4 sm:py-3 shadow-xs flex items-center justify-between">
+        <div className="h-8 w-64 bg-slate-200 rounded-xl" />
+        <div className="h-8 w-20 bg-slate-200 rounded-xl" />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-4 w-24 bg-slate-200 rounded" />
+              <div className="w-8 h-8 rounded-lg bg-slate-200" />
+            </div>
+            <div className="h-8 w-36 bg-slate-200 rounded" />
+            <div className="h-3 w-full bg-slate-100 rounded pt-2" />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 space-y-5">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="space-y-1">
+                <div className="h-4 w-32 bg-slate-200 rounded" />
+                <div className="h-3 w-48 bg-slate-100 rounded" />
+              </div>
+              <div className="h-7 w-36 bg-slate-200 rounded-md" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="h-14 bg-slate-100 rounded-lg" />
+              <div className="h-14 bg-slate-100 rounded-lg" />
+              <div className="h-14 bg-slate-100 rounded-lg" />
+            </div>
+            <div className="h-44 bg-slate-50 rounded-lg flex items-end justify-between p-4 gap-2">
+              {Array.from({ length: 16 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-200 rounded-t w-full"
+                  style={{ height: `${20 + (idx * 17) % 70}%` }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-5">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="h-4 w-28 bg-slate-200 rounded" />
+            <div className="h-12 bg-slate-100 rounded-xl" />
+            <div className="h-12 bg-slate-100 rounded-xl" />
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="h-4 w-36 bg-slate-200 rounded" />
+            <div className="h-10 bg-slate-100 rounded" />
+            <div className="h-10 bg-slate-100 rounded" />
+            <div className="h-10 bg-slate-100 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [metrics, setMetrics] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const companyId = localStorage.getItem('companyId') || 'default';
+  const initialCached = useMemo(() => getCachedData(`dashboard_${companyId}`), [companyId]);
+  const [metrics, setMetrics] = useState(initialCached);
+  const [loading, setLoading] = useState(!initialCached);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState('This Month');
   const [chartMode, setChartMode] = useState('sales');
 
-  const fetchMetrics = useCallback(() => {
-    setRefreshing(true);
-    getDashboard()
-      .then(setMetrics)
-      .catch(console.error)
-      .finally(() => {
+  const fetchMetrics = useCallback((forceFresh = false) => {
+    if (forceFresh) {
+      setRefreshing(true);
+      getDashboard(true)
+        .then((fresh) => {
+          setMetrics(fresh);
+          setLoading(false);
+        })
+        .catch(console.error)
+        .finally(() => setRefreshing(false));
+      return;
+    }
+
+    swrDashboard((fresh) => {
+      setMetrics(fresh);
+      setLoading(false);
+      setRefreshing(false);
+    }).then((initial) => {
+      if (initial) {
+        setMetrics(initial);
         setLoading(false);
-        setRefreshing(false);
-      });
+      }
+    }).catch(console.error).finally(() => {
+      setLoading(false);
+      setRefreshing(false);
+    });
   }, []);
 
   useEffect(() => {
-    fetchMetrics();
+    fetchMetrics(false);
   }, [fetchMetrics]);
 
   useEffect(() => {
@@ -123,13 +208,8 @@ export default function Dashboard() {
     return max;
   }, [salesByDay, purchasesByDay, expensesByDay, daysInCurrentMonth, chartMode]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
-        <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-semibold text-slate-500">Loading store overview…</p>
-      </div>
-    );
+  if (loading && !metrics) {
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -170,7 +250,7 @@ export default function Dashboard() {
             </div>
 
             <button
-              onClick={fetchMetrics}
+              onClick={() => fetchMetrics(true)}
               disabled={refreshing}
               className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 active:scale-95 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-2xs shrink-0"
               title="Refresh live statistics"

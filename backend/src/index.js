@@ -1,9 +1,3 @@
-// =============================================================================
-// HisabKhata POS — Cloudflare Worker Backend
-// Runtime: Hono.js v4 on Cloudflare Workers
-// Bindings: DB (D1), MY_POS_BUCKET (R2)
-// Devoloper: Suman Chakrabortty (sumanonline.com)
-// =============================================================================
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -40,6 +34,17 @@ app.use('/api/*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-Company-ID', 'Accept', 'Origin', 'X-Requested-With'],
   credentials: true,
 }));
+
+const dashboardEdgeCache = new Map();
+app.use('/api/*', async (c, next) => {
+  await next();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method)) {
+    const companyId = c.get('companyId');
+    if (companyId) {
+      dashboardEdgeCache.delete(String(companyId));
+    }
+  }
+});
 
 let migrationsApplied = false;
 async function runAutoMigrations(db) {
@@ -155,7 +160,11 @@ async function runAutoMigrations(db) {
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(company_id)
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_company_smtp_settings_co ON company_smtp_settings(company_id)`
+    `CREATE INDEX IF NOT EXISTS idx_company_smtp_settings_co ON company_smtp_settings(company_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_invoices_co_type_date ON invoices(company_id, type, date)`,
+    `CREATE INDEX IF NOT EXISTS idx_expenses_co_date ON expenses(company_id, date)`,
+    `CREATE INDEX IF NOT EXISTS idx_parties_co_type_bal ON parties(company_id, type, current_balance)`,
+    `CREATE INDEX IF NOT EXISTS idx_items_co_stock ON items(company_id, current_stock)`
   ];
   for (const sql of migrations) {
     try {
@@ -290,7 +299,6 @@ app.use('/api/*', async (c, next) => {
 app.get('/api/ping', (c) => c.json({ status: 'ok', time: Date.now() }));
 
 
-// Helper to authenticate user via JWT
 const authMiddleware = async (c, next) => {
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -308,7 +316,6 @@ const authMiddleware = async (c, next) => {
   }
 };
 
-// Helper to check if the authenticated user is an admin
 const adminOnlyMiddleware = async (c, next) => {
   const isAdmin = c.get('isAdmin');
   if (!isAdmin) {
@@ -365,7 +372,6 @@ const ownerOnlyMiddleware = async (c, next) => {
   await next();
 };
 
-// ─── Password Hashing Helpers (Web Crypto PBKDF2) ──────────────────────────────
 async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const encoder = new TextEncoder();
@@ -396,7 +402,6 @@ async function hashPassword(password) {
 
 async function verifyPassword(password, storedHash) {
   if (!storedHash) return false;
-  // Backward-compatibility fallback for unhashed legacy/demo records
   if (!storedHash.includes(':')) {
     return password === storedHash;
   }
@@ -762,9 +767,6 @@ app.get('/', (c) => {
   return c.html(html);
 });
 
-// =============================================================================
-// AUTHENTICATION
-// =============================================================================
 function generateSecureHexToken(bytesCount = 32) {
   const bytes = crypto.getRandomValues(new Uint8Array(bytesCount));
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -1372,9 +1374,6 @@ app.get('/api/proxy-image', async (c) => {
   }
 });
 
-// =============================================================================
-// COMPANIES MANAGEMENT
-// =============================================================================
 app.get('/api/companies', authMiddleware, async (c) => {
   try {
     const userId = c.get('userId');
@@ -2152,21 +2151,30 @@ app.post('/api/mail/test', authMiddleware, async (c) => {
   }
 });
 
-// =============================================================================
-// DASHBOARD
-// =============================================================================
 app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const companyId = c.get('companyId');
+    const forceFresh = c.req.query('fresh') === 'true';
+
+    const cacheKey = String(companyId);
+    const cached = dashboardEdgeCache.get(cacheKey);
+    const nowTs = Date.now();
+    if (!forceFresh && cached && (nowTs - cached.timestamp < 15000)) {
+      return c.json(cached.data);
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const startOfMonth = `${year}-${month}-01`;
+    const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+    const endOfMonth = `${year}-${month}-${String(daysInMonth).padStart(2, '0')} 23:59:59`;
 
     const [
-      salesResult,
-      purchaseResult,
-      receivablesResult,
-      payablesResult,
-      inventoryResult,
-      lowStockResult,
+      invoicesAggregate,
+      partiesAggregate,
+      itemsAggregate,
       expensesResult,
       expiringResult,
       recentInvoices,
@@ -2174,12 +2182,27 @@ app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
       dailyPurchasesResult,
       dailyExpensesResult
     ] = await db.batch([
-      db.prepare(`SELECT COALESCE(SUM(total_amount),0) as value FROM invoices WHERE type='SALES' AND company_id = ?`).bind(companyId),
-      db.prepare(`SELECT COALESCE(SUM(total_amount),0) as value FROM invoices WHERE type='PURCHASE' AND company_id = ?`).bind(companyId),
-      db.prepare(`SELECT COALESCE(SUM(current_balance),0) as value FROM parties WHERE type='CUSTOMER' AND current_balance > 0 AND company_id = ?`).bind(companyId),
-      db.prepare(`SELECT COALESCE(SUM(ABS(current_balance)),0) as value FROM parties WHERE type='VENDOR' AND current_balance < 0 AND company_id = ?`).bind(companyId),
-      db.prepare(`SELECT COALESCE(SUM(current_stock * purchase_price),0) as value FROM items WHERE company_id = ?`).bind(companyId),
-      db.prepare(`SELECT COUNT(*) as count FROM items WHERE (current_stock <= low_stock_alert OR current_stock <= 0) AND company_id = ?`).bind(companyId),
+      db.prepare(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN type='SALES' THEN total_amount ELSE 0 END), 0) as totalSales,
+          COALESCE(SUM(CASE WHEN type='PURCHASE' THEN total_amount ELSE 0 END), 0) as totalPurchases
+        FROM invoices 
+        WHERE company_id = ?
+      `).bind(companyId),
+      db.prepare(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN type='CUSTOMER' AND current_balance > 0 THEN current_balance ELSE 0 END), 0) as totalReceivables,
+          COALESCE(SUM(CASE WHEN type='VENDOR' AND current_balance < 0 THEN ABS(current_balance) ELSE 0 END), 0) as totalPayables
+        FROM parties 
+        WHERE company_id = ?
+      `).bind(companyId),
+      db.prepare(`
+        SELECT 
+          COALESCE(SUM(current_stock * purchase_price), 0) as inventoryValue,
+          COUNT(CASE WHEN (current_stock <= low_stock_alert OR current_stock <= 0) THEN 1 END) as lowStockCount
+        FROM items 
+        WHERE company_id = ?
+      `).bind(companyId),
       db.prepare(`SELECT COALESCE(SUM(amount),0) as value FROM expenses WHERE company_id = ?`).bind(companyId),
       db.prepare(`
         SELECT (
@@ -2196,45 +2219,50 @@ app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
       db.prepare(`
         SELECT CAST(strftime('%d', date) AS INTEGER) as day, COALESCE(SUM(total_amount), 0) as sales, COALESCE(SUM(amount_paid), 0) as received, COUNT(*) as count
         FROM invoices
-        WHERE type='SALES' AND company_id = ? AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+        WHERE type='SALES' AND company_id = ? AND date >= ? AND date <= ?
         GROUP BY day
-      `).bind(companyId),
+      `).bind(companyId, startOfMonth, endOfMonth),
       db.prepare(`
         SELECT CAST(strftime('%d', date) AS INTEGER) as day, COALESCE(SUM(total_amount), 0) as purchases, COALESCE(SUM(amount_paid), 0) as paid
         FROM invoices
-        WHERE type='PURCHASE' AND company_id = ? AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+        WHERE type='PURCHASE' AND company_id = ? AND date >= ? AND date <= ?
         GROUP BY day
-      `).bind(companyId),
+      `).bind(companyId, startOfMonth, endOfMonth),
       db.prepare(`
         SELECT CAST(strftime('%d', date) AS INTEGER) as day, COALESCE(SUM(amount), 0) as expenses
         FROM expenses
-        WHERE company_id = ? AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+        WHERE company_id = ? AND date >= ? AND date <= ?
         GROUP BY day
-      `).bind(companyId),
+      `).bind(companyId, startOfMonth, endOfMonth),
     ]);
 
-    return c.json({
-      totalSales: salesResult.results[0].value,
-      totalPurchases: purchaseResult.results[0].value,
-      totalReceivables: receivablesResult.results[0].value,
-      totalPayables: payablesResult.results[0].value,
-      inventoryValue: inventoryResult.results[0].value,
-      lowStockCount: lowStockResult.results[0].count,
+    const invRow = invoicesAggregate?.results?.[0] || {};
+    const partyRow = partiesAggregate?.results?.[0] || {};
+    const itemRow = itemsAggregate?.results?.[0] || {};
+
+    const responseData = {
+      totalSales: invRow.totalSales || 0,
+      totalPurchases: invRow.totalPurchases || 0,
+      totalReceivables: partyRow.totalReceivables || 0,
+      totalPayables: partyRow.totalPayables || 0,
+      inventoryValue: itemRow.inventoryValue || 0,
+      lowStockCount: itemRow.lowStockCount || 0,
       totalExpenses: expensesResult.results[0].value,
       expiringCount: expiringResult.results[0].count,
-      recentInvoices: recentInvoices.results,
+      recentInvoices: recentInvoices.results || [],
       dailySales: dailySalesResult.results || [],
       dailyPurchases: dailyPurchasesResult.results || [],
       dailyExpenses: dailyExpensesResult.results || []
-    });
+    };
+
+    dashboardEdgeCache.set(cacheKey, { data: responseData, timestamp: nowTs });
+
+    return c.json(responseData);
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
 });
 
-// =============================================================================
-// ITEMS (Inventory CRUD)
-// =============================================================================
 app.get('/api/items', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
@@ -2362,9 +2390,6 @@ app.delete('/api/items/:id', authMiddleware, companyScopeMiddleware, async (c) =
   }
 });
 
-// =============================================================================
-// CATEGORIES (CRUD)
-// =============================================================================
 app.get('/api/categories', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const db = c.env.DB;
@@ -2395,9 +2420,6 @@ app.post('/api/categories', authMiddleware, companyScopeMiddleware, async (c) =>
   }
 });
 
-// =============================================================================
-// BRANDS (CRUD)
-// =============================================================================
 app.get('/api/brands', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const db = c.env.DB;
@@ -2444,9 +2466,6 @@ app.delete('/api/brands/:id', authMiddleware, companyScopeMiddleware, async (c) 
   }
 });
 
-// =============================================================================
-// SUB-CATEGORIES (CRUD)
-// =============================================================================
 app.get('/api/sub-categories', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const db = c.env.DB;
@@ -2503,9 +2522,6 @@ app.delete('/api/sub-categories/:id', authMiddleware, companyScopeMiddleware, as
   }
 });
 
-// =============================================================================
-// UNITS (CRUD)
-// =============================================================================
 app.get('/api/units', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const db = c.env.DB;
@@ -2571,7 +2587,6 @@ app.delete('/api/units/:id', authMiddleware, companyScopeMiddleware, async (c) =
   }
 });
 
-// UNIT CONVERSIONS
 app.get('/api/unit-conversions', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const db = c.env.DB;
@@ -2624,9 +2639,6 @@ app.delete('/api/unit-conversions/:id', authMiddleware, companyScopeMiddleware, 
   }
 });
 
-// ================================================================================================
-// PARTIES (Customers & Vendors CRUD)
-// =============================================================================
 app.get('/api/parties', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
@@ -2711,9 +2723,6 @@ app.delete('/api/parties/:id', authMiddleware, companyScopeMiddleware, async (c)
   }
 });
 
-// =============================================================================
-// INVOICES
-// =============================================================================
 app.get('/api/invoices', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
@@ -3431,9 +3440,6 @@ app.delete('/api/invoices/:id', authMiddleware, companyScopeMiddleware, async (c
   }
 });
 
-// =============================================================================
-// TRANSACTIONS (Payments)
-// =============================================================================
 app.get('/api/transactions', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
@@ -3657,9 +3663,6 @@ app.delete('/api/transactions/:id', authMiddleware, companyScopeMiddleware, asyn
   }
 });
 
-// =============================================================================
-// EXPENSES
-// =============================================================================
 app.get('/api/expenses', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
@@ -3729,9 +3732,6 @@ app.delete('/api/expenses/:id', authMiddleware, companyScopeMiddleware, async (c
   }
 });
 
-// =============================================================================
-// COMPANY PROFILE
-// =============================================================================
 app.get('/api/company', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');
@@ -3797,8 +3797,6 @@ app.put('/api/company', authMiddleware, companyScopeMiddleware, async (c) => {
   }
 });
 
-// =============================================================================
-// R2 FILE UPLOAD
 app.post('/api/upload', authMiddleware, companyScopeMiddleware, async (c) => {
   try {
     const companyId = c.get('companyId');

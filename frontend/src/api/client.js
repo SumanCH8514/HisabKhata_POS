@@ -1,8 +1,3 @@
-// =============================================================================
-// API Client — thin fetch wrapper for the Hono backend
-// Developer - Suman Chakrabortty (sumanonline.com)
-// =============================================================================
-
 import { getCachedData, setCachedData, invalidateCache, prependCachedItem, updateCachedItem, removeCachedItem, swrFetch } from '../utils/cache.js';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -62,7 +57,6 @@ export const forgotPassword = (body) => request('/api/auth/forgot-password', { m
 export const verifyResetToken = (body) => request('/api/auth/verify-reset-token', { method: 'POST', body: JSON.stringify(body) });
 export const resetPassword = (body) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(body) });
 
-// ─── Companies ────────────────────────────────────────────────────────────────
 export const getCompanies = () => request('/api/companies');
 export const createCompany = (body) => request('/api/companies', { method: 'POST', body: JSON.stringify(body) });
 
@@ -143,7 +137,27 @@ export const deleteUnitConversion = async (id) => {
   return res;
 };
 
-export const getDashboard = () => request('/api/dashboard');
+export const getDashboard = (forceFresh = false) => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  const cacheKey = `dashboard_${companyId}`;
+  if (!forceFresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached) return Promise.resolve(cached);
+  }
+  return request('/api/dashboard').then(data => {
+    setCachedData(cacheKey, data, 60000);
+    return data;
+  });
+};
+
+export const swrDashboard = (callback) => {
+  const companyId = localStorage.getItem('companyId') || 'default';
+  const cacheKey = `dashboard_${companyId}`;
+  return swrFetch(cacheKey, () => request('/api/dashboard'), {
+    ttl: 60000,
+    onBackgroundUpdate: callback
+  });
+};
 
 function buildQuery(params = {}) {
   const clean = Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '' && v !== 'undefined');
@@ -222,12 +236,14 @@ export const createInvoice = async (body) => {
   const res = await request('/api/invoices', { method: 'POST', body: JSON.stringify(body) });
   const companyId = localStorage.getItem('companyId') || 'default';
   invalidateCache(`items_${companyId}`);
+  invalidateCache(`dashboard_${companyId}`);
   return res;
 };
 export const deleteInvoice = async (id) => {
   const res = await request(`/api/invoices/${id}`, { method: 'DELETE' });
   const companyId = localStorage.getItem('companyId') || 'default';
   invalidateCache(`items_${companyId}`);
+  invalidateCache(`dashboard_${companyId}`);
   return res;
 };
 export const sendInvoiceReceipt = (id, body = {}) => request(`/api/invoices/${id}/send-receipt`, { method: 'POST', body: JSON.stringify(body) });
@@ -235,18 +251,41 @@ export const sendInvoiceReceipt = (id, body = {}) => request(`/api/invoices/${id
 export const getTransactions = (params = {}) => {
   return request(`/api/transactions${buildQuery(params)}`);
 };
-export const createTransaction = (body) => request('/api/transactions', { method: 'POST', body: JSON.stringify(body) });
-export const deleteTransaction = (id) => request(`/api/transactions/${id}`, { method: 'DELETE' });
+export const createTransaction = async (body) => {
+  const res = await request('/api/transactions', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`dashboard_${companyId}`);
+  return res;
+};
+export const deleteTransaction = async (id) => {
+  const res = await request(`/api/transactions/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`dashboard_${companyId}`);
+  return res;
+};
 
-// ─── Company Profile ──────────────────────────────────────────────────────────
 export const getCompany = () => request('/api/company');
 export const updateCompany = (body) => request('/api/company', { method: 'PUT', body: JSON.stringify(body) });
 
-// ─── Expenses ─────────────────────────────────────────────────────────────────
 export const getExpenses = () => request('/api/expenses');
-export const createExpense = (body) => request('/api/expenses', { method: 'POST', body: JSON.stringify(body) });
-export const updateExpense = (id, body) => request(`/api/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) });
-export const deleteExpense = (id) => request(`/api/expenses/${id}`, { method: 'DELETE' });
+export const createExpense = async (body) => {
+  const res = await request('/api/expenses', { method: 'POST', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`dashboard_${companyId}`);
+  return res;
+};
+export const updateExpense = async (id, body) => {
+  const res = await request(`/api/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`dashboard_${companyId}`);
+  return res;
+};
+export const deleteExpense = async (id) => {
+  const res = await request(`/api/expenses/${id}`, { method: 'DELETE' });
+  const companyId = localStorage.getItem('companyId') || 'default';
+  invalidateCache(`dashboard_${companyId}`);
+  return res;
+};
 
 export const compressImageClient = (file, maxDimension = 1200, maxSizeBytes = 200 * 1024) => {
   if (!file || !file.type || !file.type.startsWith('image/')) return Promise.resolve(file);
