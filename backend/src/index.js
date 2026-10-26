@@ -2165,11 +2165,26 @@ app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
     }
 
     const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const month = pad(now.getMonth() + 1);
+    const day = pad(now.getDate());
+
+    const startOfDay = `${year}-${month}-${day}`;
+    const endOfDay = `${year}-${month}-${day} 23:59:59`;
+
+    const dayOfWeek = now.getDay();
+    const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMon);
+    const startOfWeek = `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`;
+
     const startOfMonth = `${year}-${month}-01`;
     const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-    const endOfMonth = `${year}-${month}-${String(daysInMonth).padStart(2, '0')} 23:59:59`;
+    const endOfMonth = `${year}-${month}-${pad(daysInMonth)} 23:59:59`;
+
+    const startOfYear = `${year}-01-01`;
+    const endOfYear = `${year}-12-31 23:59:59`;
 
     const [
       invoicesAggregate,
@@ -2185,10 +2200,22 @@ app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
       db.prepare(`
         SELECT 
           COALESCE(SUM(CASE WHEN type='SALES' THEN total_amount ELSE 0 END), 0) as totalSales,
-          COALESCE(SUM(CASE WHEN type='PURCHASE' THEN total_amount ELSE 0 END), 0) as totalPurchases
+          COALESCE(SUM(CASE WHEN type='PURCHASE' THEN total_amount ELSE 0 END), 0) as totalPurchases,
+
+          COALESCE(SUM(CASE WHEN type='SALES' AND date >= ?1 AND date <= ?2 THEN total_amount ELSE 0 END), 0) as todaySales,
+          COALESCE(SUM(CASE WHEN type='PURCHASE' AND date >= ?1 AND date <= ?2 THEN total_amount ELSE 0 END), 0) as todayPurchases,
+
+          COALESCE(SUM(CASE WHEN type='SALES' AND date >= ?3 AND date <= ?2 THEN total_amount ELSE 0 END), 0) as weekSales,
+          COALESCE(SUM(CASE WHEN type='PURCHASE' AND date >= ?3 AND date <= ?2 THEN total_amount ELSE 0 END), 0) as weekPurchases,
+
+          COALESCE(SUM(CASE WHEN type='SALES' AND date >= ?4 AND date <= ?5 THEN total_amount ELSE 0 END), 0) as monthSales,
+          COALESCE(SUM(CASE WHEN type='PURCHASE' AND date >= ?4 AND date <= ?5 THEN total_amount ELSE 0 END), 0) as monthPurchases,
+
+          COALESCE(SUM(CASE WHEN type='SALES' AND date >= ?6 AND date <= ?7 THEN total_amount ELSE 0 END), 0) as yearSales,
+          COALESCE(SUM(CASE WHEN type='PURCHASE' AND date >= ?6 AND date <= ?7 THEN total_amount ELSE 0 END), 0) as yearPurchases
         FROM invoices 
-        WHERE company_id = ?
-      `).bind(companyId),
+        WHERE company_id = ?8
+      `).bind(startOfDay, endOfDay, startOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, companyId),
       db.prepare(`
         SELECT 
           COALESCE(SUM(CASE WHEN type='CUSTOMER' AND current_balance > 0 THEN current_balance ELSE 0 END), 0) as totalReceivables,
@@ -2203,7 +2230,16 @@ app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
         FROM items 
         WHERE company_id = ?
       `).bind(companyId),
-      db.prepare(`SELECT COALESCE(SUM(amount),0) as value FROM expenses WHERE company_id = ?`).bind(companyId),
+      db.prepare(`
+        SELECT 
+          COALESCE(SUM(amount), 0) as totalExpenses,
+          COALESCE(SUM(CASE WHEN date >= ?1 AND date <= ?2 THEN amount ELSE 0 END), 0) as todayExpenses,
+          COALESCE(SUM(CASE WHEN date >= ?3 AND date <= ?2 THEN amount ELSE 0 END), 0) as weekExpenses,
+          COALESCE(SUM(CASE WHEN date >= ?4 AND date <= ?5 THEN amount ELSE 0 END), 0) as monthExpenses,
+          COALESCE(SUM(CASE WHEN date >= ?6 AND date <= ?7 THEN amount ELSE 0 END), 0) as yearExpenses
+        FROM expenses 
+        WHERE company_id = ?8
+      `).bind(startOfDay, endOfDay, startOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, companyId),
       db.prepare(`
         SELECT (
           (SELECT COUNT(*) FROM items WHERE expiry_date IS NOT NULL AND expiry_date != '' AND expiry_date <= date('now', '+30 days') AND company_id = ?) +
@@ -2239,15 +2275,48 @@ app.get('/api/dashboard', authMiddleware, companyScopeMiddleware, async (c) => {
     const invRow = invoicesAggregate?.results?.[0] || {};
     const partyRow = partiesAggregate?.results?.[0] || {};
     const itemRow = itemsAggregate?.results?.[0] || {};
+    const expRow = expensesResult?.results?.[0] || {};
+
+    const periods = {
+      today: {
+        sales: invRow.todaySales || 0,
+        purchases: invRow.todayPurchases || 0,
+        expenses: expRow.todayExpenses || 0
+      },
+      week: {
+        sales: invRow.weekSales || 0,
+        purchases: invRow.weekPurchases || 0,
+        expenses: expRow.weekExpenses || 0
+      },
+      month: {
+        sales: invRow.monthSales || 0,
+        purchases: invRow.monthPurchases || 0,
+        expenses: expRow.monthExpenses || 0
+      },
+      year: {
+        sales: invRow.yearSales || 0,
+        purchases: invRow.yearPurchases || 0,
+        expenses: expRow.yearExpenses || 0
+      },
+      all: {
+        sales: invRow.totalSales || 0,
+        purchases: invRow.totalPurchases || 0,
+        expenses: expRow.totalExpenses || 0
+      }
+    };
 
     const responseData = {
-      totalSales: invRow.totalSales || 0,
-      totalPurchases: invRow.totalPurchases || 0,
+      totalSales: invRow.monthSales || invRow.totalSales || 0,
+      totalPurchases: invRow.monthPurchases || invRow.totalPurchases || 0,
+      totalExpenses: expRow.monthExpenses || expRow.totalExpenses || 0,
+      lifetimeSales: invRow.totalSales || 0,
+      lifetimePurchases: invRow.totalPurchases || 0,
+      lifetimeExpenses: expRow.totalExpenses || 0,
+      periods,
       totalReceivables: partyRow.totalReceivables || 0,
       totalPayables: partyRow.totalPayables || 0,
       inventoryValue: itemRow.inventoryValue || 0,
       lowStockCount: itemRow.lowStockCount || 0,
-      totalExpenses: expensesResult.results[0].value,
       expiringCount: expiringResult.results[0].count,
       recentInvoices: recentInvoices.results || [],
       dailySales: dailySalesResult.results || [],

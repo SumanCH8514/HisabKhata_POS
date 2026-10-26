@@ -142,7 +142,7 @@ export const getDashboard = (forceFresh = false) => {
   const cacheKey = `dashboard_${companyId}`;
   if (!forceFresh) {
     const cached = getCachedData(cacheKey);
-    if (cached) return Promise.resolve(cached);
+    if (cached && cached.periods) return Promise.resolve(cached);
   }
   return request('/api/dashboard').then(data => {
     setCachedData(cacheKey, data, 60000);
@@ -153,6 +153,10 @@ export const getDashboard = (forceFresh = false) => {
 export const swrDashboard = (callback) => {
   const companyId = localStorage.getItem('companyId') || 'default';
   const cacheKey = `dashboard_${companyId}`;
+  const cached = getCachedData(cacheKey);
+  if (cached && !cached.periods) {
+    invalidateCache(cacheKey);
+  }
   return swrFetch(cacheKey, () => request('/api/dashboard'), {
     ttl: 60000,
     onBackgroundUpdate: callback

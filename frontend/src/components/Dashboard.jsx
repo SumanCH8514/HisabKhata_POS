@@ -79,7 +79,10 @@ function DashboardSkeleton() {
 export default function Dashboard() {
   const navigate = useNavigate();
   const companyId = localStorage.getItem('companyId') || 'default';
-  const initialCached = useMemo(() => getCachedData(`dashboard_${companyId}`), [companyId]);
+  const initialCached = useMemo(() => {
+    const c = getCachedData(`dashboard_${companyId}`);
+    return c && c.periods ? c : null;
+  }, [companyId]);
   const [metrics, setMetrics] = useState(initialCached);
   const [loading, setLoading] = useState(!initialCached);
   const [refreshing, setRefreshing] = useState(false);
@@ -154,16 +157,14 @@ export default function Dashboard() {
     recentInvoices: []
   };
 
-  const netCashFlow = (m.totalSales || 0) - (m.totalPurchases || 0) - (m.totalExpenses || 0);
-  const grossProfit = (m.totalSales || 0) - (m.totalPurchases || 0);
-  const grossMargin = m.totalSales > 0 ? ((grossProfit / m.totalSales) * 100).toFixed(1) : '0.0';
+  const now = useMemo(() => new Date(), []);
 
-  const now = new Date();
-  const dateFormatted = new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  }).format(now);
+  const periodKey = useMemo(() => {
+    if (period === 'Today') return 'today';
+    if (period === 'This Week') return 'week';
+    if (period === 'This Year') return 'year';
+    return 'month';
+  }, [period]);
 
   const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const currentDay = now.getDate();
@@ -192,21 +193,277 @@ export default function Dashboard() {
     return map;
   }, [m.dailyExpenses]);
 
-  const maxDayValue = useMemo(() => {
+  const activeSales = useMemo(() => {
+    if (m.periods?.[periodKey] && typeof m.periods[periodKey].sales === 'number') {
+      return Number(m.periods[periodKey].sales) || 0;
+    }
+    if (period === 'Today') {
+      return Number(salesByDay[currentDay]?.sales) || 0;
+    }
+    if (period === 'This Week') {
+      const dayOfWeek = now.getDay();
+      const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+      let sum = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() + diffToMon + i);
+        if (d.getMonth() === now.getMonth()) {
+          sum += Number(salesByDay[d.getDate()]?.sales) || 0;
+        }
+      }
+      return sum;
+    }
+    if (period === 'This Month') {
+      let sum = 0;
+      for (let d = 1; d <= daysInCurrentMonth; d++) {
+        sum += Number(salesByDay[d]?.sales) || 0;
+      }
+      return sum > 0 ? sum : (Number(m.totalSales) || 0);
+    }
+    return Number(m.totalSales) || 0;
+  }, [m, periodKey, period, currentDay, salesByDay, now, daysInCurrentMonth]);
+
+  const activePurchases = useMemo(() => {
+    if (m.periods?.[periodKey] && typeof m.periods[periodKey].purchases === 'number') {
+      return Number(m.periods[periodKey].purchases) || 0;
+    }
+    if (period === 'Today') {
+      return Number(purchasesByDay[currentDay]?.purchases) || 0;
+    }
+    if (period === 'This Week') {
+      const dayOfWeek = now.getDay();
+      const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+      let sum = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() + diffToMon + i);
+        if (d.getMonth() === now.getMonth()) {
+          sum += Number(purchasesByDay[d.getDate()]?.purchases) || 0;
+        }
+      }
+      return sum;
+    }
+    if (period === 'This Month') {
+      let sum = 0;
+      for (let d = 1; d <= daysInCurrentMonth; d++) {
+        sum += Number(purchasesByDay[d]?.purchases) || 0;
+      }
+      return sum > 0 ? sum : (Number(m.totalPurchases) || 0);
+    }
+    return Number(m.totalPurchases) || 0;
+  }, [m, periodKey, period, currentDay, purchasesByDay, now, daysInCurrentMonth]);
+
+  const activeExpenses = useMemo(() => {
+    if (m.periods?.[periodKey] && typeof m.periods[periodKey].expenses === 'number') {
+      return Number(m.periods[periodKey].expenses) || 0;
+    }
+    if (period === 'Today') {
+      return Number(expensesByDay[currentDay]) || 0;
+    }
+    if (period === 'This Week') {
+      const dayOfWeek = now.getDay();
+      const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+      let sum = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() + diffToMon + i);
+        if (d.getMonth() === now.getMonth()) {
+          sum += Number(expensesByDay[d.getDate()]) || 0;
+        }
+      }
+      return sum;
+    }
+    if (period === 'This Month') {
+      let sum = 0;
+      for (let d = 1; d <= daysInCurrentMonth; d++) {
+        sum += Number(expensesByDay[d]) || 0;
+      }
+      return sum > 0 ? sum : (Number(m.totalExpenses) || 0);
+    }
+    return Number(m.totalExpenses) || 0;
+  }, [m, periodKey, period, currentDay, expensesByDay, now, daysInCurrentMonth]);
+
+  const netCashFlow = activeSales - activePurchases - activeExpenses;
+  const grossProfit = activeSales - activePurchases;
+  const grossMargin = activeSales > 0 ? ((grossProfit / activeSales) * 100).toFixed(1) : '0.0';
+
+  const periodLabelMap = {
+    Today: 'Today',
+    'This Week': 'Week',
+    'This Month': 'Month',
+    'This Year': 'Year'
+  };
+  const currentPeriodName = periodLabelMap[period] || 'Period';
+
+  const periodDateLabel = useMemo(() => {
+    const pad = (n) => String(n).padStart(2, '0');
+    const day = pad(now.getDate());
+    const monthShort = new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now);
+    const year = now.getFullYear();
+
+    if (period === 'Today') {
+      return `${day} ${monthShort} ${year}`;
+    }
+
+    if (period === 'This Week') {
+      const dayOfWeek = now.getDay();
+      const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+      const mon = new Date(now);
+      mon.setDate(now.getDate() + diffToMon);
+      const monDay = pad(mon.getDate());
+      const monMonth = new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(mon);
+      return `${monDay} ${monMonth} – ${day} ${monthShort} ${year}`;
+    }
+
+    if (period === 'This Year') {
+      return `01 Jan – ${day} ${monthShort} ${year}`;
+    }
+
+    return `01 ${monthShort} – ${day} ${monthShort} ${year}`;
+  }, [period, now]);
+
+  const performanceInfo = useMemo(() => {
+    switch (period) {
+      case 'Today':
+        return {
+          title: "Today's Performance",
+          subtitle: `Hour-by-hour sales & cash activity for ${new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(now)}`
+        };
+      case 'This Week':
+        return {
+          title: 'Weekly Performance',
+          subtitle: 'Day-by-day billing activity for this week (Mon – Sun)'
+        };
+      case 'This Year':
+        return {
+          title: 'Annual Performance',
+          subtitle: `Month-by-month billing activity for ${now.getFullYear()}`
+        };
+      case 'This Month':
+      default:
+        return {
+          title: 'Monthly Performance',
+          subtitle: `Day-by-day billing activity for ${new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(now)}`
+        };
+    }
+  }, [period, now]);
+
+  const chartDataItems = useMemo(() => {
+    if (period === 'Today') {
+      const hours = [8, 10, 12, 14, 16, 18, 20, 22];
+      const todaySalesVal = Number(m.periods?.today?.sales) || Number(salesByDay[currentDay]?.sales) || 0;
+      return hours.map(h => {
+        const isCurrentSlot = now.getHours() >= h && now.getHours() < h + 2;
+        const salesVal = isCurrentSlot ? todaySalesVal : 0;
+        const hourStr = h <= 12 ? `${h} AM` : `${h - 12} PM`;
+        return {
+          id: h,
+          label: hourStr,
+          tooltipTitle: `${hourStr} Today`,
+          sales: salesVal,
+          received: salesVal,
+          count: salesVal > 0 ? 1 : 0,
+          inflow: salesVal,
+          outflow: 0,
+          isHighlight: isCurrentSlot
+        };
+      });
+    }
+
+    if (period === 'This Week') {
+      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const dayOfWeek = now.getDay();
+      const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+      const mon = new Date(now);
+      mon.setDate(now.getDate() + diffToMon);
+
+      return dayNames.map((name, idx) => {
+        const d = new Date(mon);
+        d.setDate(mon.getDate() + idx);
+        const dayOfMonth = d.getDate();
+        const isSameMonth = d.getMonth() === now.getMonth();
+        const s = isSameMonth ? (salesByDay[dayOfMonth] || { sales: 0, received: 0, count: 0 }) : { sales: 0, received: 0, count: 0 };
+        const p = isSameMonth ? (purchasesByDay[dayOfMonth] || { purchases: 0, paid: 0 }) : { purchases: 0, paid: 0 };
+        const e = isSameMonth ? (expensesByDay[dayOfMonth] || 0) : 0;
+        const inflow = s.received || s.sales || 0;
+        const outflow = (p.paid || p.purchases || 0) + e;
+        const isToday = d.toDateString() === now.toDateString();
+
+        return {
+          id: name,
+          label: name,
+          tooltipTitle: `${name}, ${dayOfMonth} ${new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(d)}`,
+          sales: s.sales,
+          received: s.received,
+          count: s.count,
+          inflow,
+          outflow,
+          isHighlight: isToday
+        };
+      });
+    }
+
+    if (period === 'This Year') {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentMonthIdx = now.getMonth();
+
+      return monthNames.map((name, idx) => {
+        const isCurrentMonth = idx === currentMonthIdx;
+        const salesVal = isCurrentMonth ? activeSales : 0;
+        const purchasesVal = isCurrentMonth ? activePurchases : 0;
+        const expensesVal = isCurrentMonth ? activeExpenses : 0;
+        const inflow = salesVal;
+        const outflow = purchasesVal + expensesVal;
+
+        return {
+          id: name,
+          label: name,
+          tooltipTitle: `${name} ${now.getFullYear()}`,
+          sales: salesVal,
+          received: salesVal,
+          count: salesVal > 0 ? 1 : 0,
+          inflow,
+          outflow,
+          isHighlight: isCurrentMonth
+        };
+      });
+    }
+
+    return Array.from({ length: Math.min(daysInCurrentMonth, 31) }).map((_, idx) => {
+      const dayNum = idx + 1;
+      const isToday = dayNum === currentDay;
+      const s = salesByDay[dayNum] || { sales: 0, received: 0, count: 0 };
+      const p = purchasesByDay[dayNum] || { purchases: 0, paid: 0 };
+      const e = expensesByDay[dayNum] || 0;
+      const inflow = s.received || s.sales || 0;
+      const outflow = (p.paid || p.purchases || 0) + e;
+
+      return {
+        id: dayNum,
+        label: dayNum === 1 || dayNum === 7 || dayNum === 14 || dayNum === 21 || dayNum === daysInCurrentMonth ? String(dayNum).padStart(2, '0') : '',
+        tooltipTitle: `${dayNum} ${new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}`,
+        sales: s.sales,
+        received: s.received,
+        count: s.count,
+        inflow,
+        outflow,
+        isHighlight: isToday
+      };
+    });
+  }, [period, now, currentDay, daysInCurrentMonth, m, salesByDay, purchasesByDay, expensesByDay, activeSales, activePurchases, activeExpenses]);
+
+  const maxChartValue = useMemo(() => {
     let max = 100;
-    for (let day = 1; day <= daysInCurrentMonth; day++) {
+    for (const item of chartDataItems) {
       if (chartMode === 'sales') {
-        const val = salesByDay[day]?.sales || 0;
-        if (val > max) max = val;
+        if (item.sales > max) max = item.sales;
       } else {
-        const inflow = salesByDay[day]?.received || salesByDay[day]?.sales || 0;
-        const outflow = (purchasesByDay[day]?.paid || purchasesByDay[day]?.purchases || 0) + (expensesByDay[day] || 0);
-        const val = Math.max(inflow, outflow);
+        const val = Math.max(item.inflow || 0, item.outflow || 0);
         if (val > max) max = val;
       }
     }
     return max;
-  }, [salesByDay, purchasesByDay, expensesByDay, daysInCurrentMonth, chartMode]);
+  }, [chartDataItems, chartMode]);
 
   if (loading && !metrics) {
     return <DashboardSkeleton />;
@@ -235,8 +492,8 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <span className="text-[11px] font-semibold text-slate-400 hidden md:inline truncate">
-              01 {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)} – {dateFormatted}
+            <span className="text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg hidden md:inline truncate">
+              {periodDateLabel}
             </span>
           </div>
 
@@ -277,10 +534,10 @@ export default function Dashboard() {
           </div>
           <div className="mt-2.5 sm:mt-3">
             <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight number-cell">
-              {fmtCurrency(m.totalSales || 0)}
+              {fmtCurrency(activeSales)}
             </p>
             <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
-              <span>Lifetime Volume</span>
+              <span>{currentPeriodName} Volume</span>
               <span className="text-emerald-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
                 View bills <ChevronRight size={13} />
               </span>
@@ -300,10 +557,10 @@ export default function Dashboard() {
           </div>
           <div className="mt-2.5 sm:mt-3">
             <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight number-cell">
-              {fmtCurrency(m.totalPurchases || 0)}
+              {fmtCurrency(activePurchases)}
             </p>
             <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
-              <span>Stock Inward</span>
+              <span>{currentPeriodName} Inward</span>
               <span className="text-blue-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
                 View bills <ChevronRight size={13} />
               </span>
@@ -368,9 +625,9 @@ export default function Dashboard() {
               <div>
                 <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                   <BarChart3 size={16} className="text-emerald-600" />
-                  Monthly Performance
+                  {performanceInfo.title}
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">Day-by-day billing activity for current month</p>
+                <p className="text-xs text-slate-400 mt-0.5">{performanceInfo.subtitle}</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -409,7 +666,7 @@ export default function Dashboard() {
               <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Other Expenses</span>
                 <span className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 number-cell block mt-0.5">
-                  {fmtCurrency(m.totalExpenses || 0)}
+                  {fmtCurrency(activeExpenses)}
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
@@ -425,70 +682,63 @@ export default function Dashboard() {
                 
                 <div className="w-full flex-1 flex items-end justify-between gap-1 sm:gap-1.5 border-b border-slate-200 pb-1 px-1">
                   {chartMode === 'sales' ? (
-                    Array.from({ length: Math.min(daysInCurrentMonth, 31) }).map((_, idx) => {
-                      const dayNum = idx + 1;
-                      const isToday = dayNum === currentDay;
-                      const dayData = salesByDay[dayNum] || { sales: 0, count: 0 };
-                      const hasSales = dayData.sales > 0;
+                    chartDataItems.map((item) => {
+                      const hasSales = item.sales > 0;
                       const heightPercent = hasSales 
-                        ? Math.max(14, Math.min(100, Math.round((dayData.sales / maxDayValue) * 90))) 
+                        ? Math.max(14, Math.min(100, Math.round((item.sales / maxChartValue) * 90))) 
                         : 4;
 
                       return (
                         <div
-                          key={dayNum}
+                          key={item.id}
                           className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end"
                         >
                           <div
                             style={{ height: `${heightPercent}%` }}
-                            className={`w-full max-w-[14px] rounded-t transition-all ${
+                            className={`w-full max-w-[20px] rounded-t transition-all ${
                               hasSales 
                                 ? 'bg-emerald-500 group-hover:bg-emerald-600 shadow-2xs' 
-                                : isToday 
+                                : item.isHighlight 
                                 ? 'bg-blue-300 ring-2 ring-blue-400' 
                                 : 'bg-slate-100 group-hover:bg-slate-200'
                             }`}
                           />
                           <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute -top-10 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-xl transition-all whitespace-nowrap z-30 flex flex-col items-center">
-                            <span>{dayNum} {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}</span>
-                            <span className="text-emerald-400 font-mono">{fmtCurrency(dayData.sales)}</span>
-                            {dayData.count > 0 && <span className="text-[9px] text-slate-300">({dayData.count} {dayData.count === 1 ? 'sale' : 'sales'})</span>}
+                            <span>{item.tooltipTitle}</span>
+                            <span className="text-emerald-400 font-mono">{fmtCurrency(item.sales)}</span>
+                            {item.count > 0 && <span className="text-[9px] text-slate-300">({item.count} {item.count === 1 ? 'sale' : 'sales'})</span>}
                           </div>
                         </div>
                       );
                     })
                   ) : (
-                    Array.from({ length: Math.min(daysInCurrentMonth, 31) }).map((_, idx) => {
-                      const dayNum = idx + 1;
-                      const isToday = dayNum === currentDay;
-                      const inflow = salesByDay[dayNum]?.received || salesByDay[dayNum]?.sales || 0;
-                      const purchaseOutflow = purchasesByDay[dayNum]?.paid || purchasesByDay[dayNum]?.purchases || 0;
-                      const expenseOutflow = expensesByDay[dayNum] || 0;
-                      const totalOutflow = purchaseOutflow + expenseOutflow;
+                    chartDataItems.map((item) => {
+                      const totalOutflow = item.outflow || 0;
+                      const inflow = item.inflow || 0;
                       const netDay = inflow - totalOutflow;
 
-                      const inflowHeight = inflow > 0 ? Math.max(10, Math.min(100, Math.round((inflow / maxDayValue) * 85))) : 4;
-                      const outflowHeight = totalOutflow > 0 ? Math.max(10, Math.min(100, Math.round((totalOutflow / maxDayValue) * 85))) : 0;
+                      const inflowHeight = inflow > 0 ? Math.max(10, Math.min(100, Math.round((inflow / maxChartValue) * 85))) : 4;
+                      const outflowHeight = totalOutflow > 0 ? Math.max(10, Math.min(100, Math.round((totalOutflow / maxChartValue) * 85))) : 0;
 
                       return (
                         <div
-                          key={dayNum}
+                          key={item.id}
                           className="flex-1 flex items-end justify-center gap-0.5 group relative h-full"
                         >
                           <div
                             style={{ height: `${inflowHeight}%` }}
-                            className={`w-full max-w-[7px] rounded-t transition-all ${
-                              inflow > 0 ? 'bg-emerald-500 group-hover:bg-emerald-600' : isToday ? 'bg-blue-200' : 'bg-slate-100'
+                            className={`w-full max-w-[10px] rounded-t transition-all ${
+                              inflow > 0 ? 'bg-emerald-500 group-hover:bg-emerald-600' : item.isHighlight ? 'bg-blue-200' : 'bg-slate-100'
                             }`}
                           />
                           {totalOutflow > 0 && (
                             <div
                               style={{ height: `${outflowHeight}%` }}
-                              className="w-full max-w-[7px] rounded-t bg-rose-400 group-hover:bg-rose-500 transition-all"
+                              className="w-full max-w-[10px] rounded-t bg-rose-400 group-hover:bg-rose-500 transition-all"
                             />
                           )}
                           <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute -top-12 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-xl transition-all whitespace-nowrap z-30 flex flex-col items-center">
-                            <span>{dayNum} {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}</span>
+                            <span>{item.tooltipTitle}</span>
                             <span className="text-emerald-400 font-mono">+ Inflow: {fmtCurrency(inflow)}</span>
                             {totalOutflow > 0 && <span className="text-rose-400 font-mono">- Outflow: {fmtCurrency(totalOutflow)}</span>}
                             <span className={`text-[9px] font-mono font-black ${netDay >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>Net: {fmtCurrency(netDay)}</span>
@@ -500,11 +750,33 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-2 px-1">
-                  <span>01 {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}</span>
-                  <span>07</span>
-                  <span>14</span>
-                  <span>21</span>
-                  <span>{daysInCurrentMonth} {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}</span>
+                  {period === 'Today' ? (
+                    chartDataItems.map((item) => (
+                      <span key={item.id} className={item.isHighlight ? 'text-blue-600 font-bold' : ''}>
+                        {item.label}
+                      </span>
+                    ))
+                  ) : period === 'This Week' ? (
+                    chartDataItems.map((item) => (
+                      <span key={item.id} className={item.isHighlight ? 'text-emerald-600 font-bold' : ''}>
+                        {item.label}
+                      </span>
+                    ))
+                  ) : period === 'This Year' ? (
+                    chartDataItems.map((item) => (
+                      <span key={item.id} className={item.isHighlight ? 'text-emerald-600 font-bold' : ''}>
+                        {item.label}
+                      </span>
+                    ))
+                  ) : (
+                    <>
+                      <span>01 {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}</span>
+                      <span>07</span>
+                      <span>14</span>
+                      <span>21</span>
+                      <span>{daysInCurrentMonth} {new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(now)}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
