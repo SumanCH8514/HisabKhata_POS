@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getItems, getUnits, getUnitConversions, createUnitConversion, deleteUnitConversion, getCompany, fmtCurrency } from '../api/client.js';
 import { toast } from '../utils/toast.js';
+import html2canvas from 'html2canvas';
 
 const CODE128_PATTERNS = [
   "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
@@ -153,7 +154,9 @@ function BarcodeSvg({ value, type = 'CODE128', height = 36 }) {
   return (
     <svg
       viewBox={`0 0 ${totalWidth} ${height}`}
-      className="w-full h-full max-h-[38px] object-contain"
+      width="100%"
+      height={height}
+      style={{ width: '100%', height: `${height}px`, maxHeight: `${height}px`, display: 'block' }}
       preserveAspectRatio="none"
     >
       {bars.map((bar, idx) => (
@@ -279,9 +282,12 @@ export default function ExtraTools() {
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
+  const labelRef = useRef(null);
 
-  const [barcodeLayout, setBarcodeLayout] = useState('A4_24');
-  const [labelQty, setLabelQty] = useState(24);
+  const [barcodeLayout, setBarcodeLayout] = useState('THERMAL_58MM');
+  const [labelQty, setLabelQty] = useState(1);
+  const [printMode, setPrintMode] = useState('BARCODE');
   const [codeType, setCodeType] = useState('CODE128');
   const [selectedItemId, setSelectedItemId] = useState('');
   const [barcodeOptions, setBarcodeOptions] = useState({
@@ -369,8 +375,194 @@ export default function ExtraTools() {
     }
   };
 
+  const handleDownloadImage = async () => {
+    if (!selectedItem) {
+      toast.error('No barcode label available to download');
+      return;
+    }
+    setDownloadingImage(true);
+    try {
+      const codeVal = selectedItem.barcode || `HK-${selectedItem.id.toString().padStart(6, '0')}`;
+      const width = 640;
+      let calculatedHeight = 60;
+      if (barcodeOptions.showStoreName) calculatedHeight += 32;
+      if (barcodeOptions.showProductName) calculatedHeight += 36;
+      if (codeType === 'QR_CODE') calculatedHeight += 115;
+      else calculatedHeight += 95;
+      if (barcodeOptions.showBarcodeNumber) calculatedHeight += 32;
+      if (barcodeOptions.showPrice) calculatedHeight += 44;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = calculatedHeight;
+      const ctx = canvas.getContext('2d');
+
+      const drawCardRounded = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      };
+
+      ctx.fillStyle = '#ffffff';
+      drawCardRounded(4, 4, width - 8, calculatedHeight - 8, 22);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.stroke();
+
+      let curY = 36;
+
+      if (barcodeOptions.showStoreName) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '900 20px Inter, system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        const storeText = (company?.name || 'MC Electronics').toUpperCase();
+        ctx.fillText(storeText, width / 2, curY);
+        curY += 34;
+      }
+
+      if (barcodeOptions.showProductName) {
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '900 22px Inter, system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        let pName = selectedItem.name || 'Product Label';
+        while (ctx.measureText(pName).width > width - 60 && pName.length > 5) {
+          pName = pName.slice(0, -4) + '...';
+        }
+        ctx.fillText(pName, width / 2, curY);
+        curY += 16;
+      }
+
+      if (codeType === 'QR_CODE') {
+        const qrSize = 100;
+        const qrX = (width - qrSize) / 2;
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            ctx.drawImage(img, qrX, curY, qrSize, qrSize);
+            resolve();
+          };
+          img.onerror = () => resolve();
+          img.src = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(codeVal)}`;
+        });
+        curY += qrSize + 16;
+      } else {
+        const { bars, totalWidth } = codeType === 'CODE39'
+          ? generateCode39Bars(codeVal)
+          : codeType === 'EAN13'
+          ? generateEan13Bars(codeVal)
+          : generateCode128Bars(codeVal);
+
+        const barcodeH = 75;
+        const barcodeW = width - 120;
+        const startX = 60;
+        const scaleX = barcodeW / totalWidth;
+
+        ctx.fillStyle = '#000000';
+        for (let i = 0; i < bars.length; i++) {
+          const b = bars[i];
+          ctx.fillRect(startX + (b.x * scaleX), curY, Math.max(1, b.width * scaleX), barcodeH);
+        }
+        curY += barcodeH + 18;
+      }
+
+      if (barcodeOptions.showBarcodeNumber) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '700 17px monospace, Courier New, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(codeVal, width / 2, curY);
+        curY += 22;
+      }
+
+      if (barcodeOptions.showPrice) {
+        curY += 2;
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(40, curY);
+        ctx.lineTo(width - 40, curY);
+        ctx.stroke();
+        curY += 26;
+
+        const priceParts = [];
+        if (selectedItem.mrp) {
+          priceParts.push({ label: `MRP: ₹${selectedItem.mrp}`, color: '#0f172a' });
+        }
+        if (selectedItem.sale_price && (Number(selectedItem.sale_price) !== Number(selectedItem.mrp) || !selectedItem.mrp)) {
+          priceParts.push({ label: `Our Price: ₹${selectedItem.sale_price}`, color: '#047857' });
+        }
+        if (priceParts.length === 0) {
+          priceParts.push({ label: 'MRP: ₹0', color: '#0f172a' });
+        }
+
+        ctx.font = '900 22px Inter, system-ui, -apple-system, sans-serif';
+
+        if (priceParts.length === 1) {
+          ctx.fillStyle = priceParts[0].color;
+          ctx.textAlign = 'center';
+          ctx.fillText(priceParts[0].label, width / 2, curY);
+        } else {
+          const p1 = priceParts[0].label;
+          const p2 = priceParts[1].label;
+          const w1 = ctx.measureText(p1).width;
+          const w2 = ctx.measureText(p2).width;
+          const gap = 36;
+          const totalW = w1 + gap + w2;
+          const sX = (width - totalW) / 2;
+
+          ctx.textAlign = 'left';
+          ctx.fillStyle = priceParts[0].color;
+          ctx.fillText(p1, sX, curY);
+
+          ctx.fillStyle = priceParts[1].color;
+          ctx.fillText(p2, sX + w1 + gap, curY);
+        }
+      }
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      const safeName = (selectedItem.name || 'barcode_label').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeCode = (selectedItem.barcode || `HK-${selectedItem.id || '001'}`).trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `${safeName}_${safeCode}_label.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Barcode label downloaded as image');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to download barcode image');
+    } finally {
+      setDownloadingImage(false);
+    }
+  };
+
   const handlePrintLabels = () => {
-    window.print();
+    setPrintMode('BARCODE');
+    const wasDark = document.documentElement.classList.contains('dark');
+    if (wasDark) document.documentElement.classList.remove('dark');
+    setTimeout(() => {
+      window.print();
+      if (wasDark) document.documentElement.classList.add('dark');
+    }, 120);
+  };
+
+  const handlePrintCashSlip = () => {
+    setPrintMode('CASH_TALLY');
+    const wasDark = document.documentElement.classList.contains('dark');
+    if (wasDark) document.documentElement.classList.remove('dark');
+    setTimeout(() => {
+      window.print();
+      if (wasDark) document.documentElement.classList.add('dark');
+    }, 120);
   };
 
   const totalCashTally = useMemo(() => {
@@ -447,9 +639,523 @@ export default function ExtraTools() {
   const gridColsClass = useMemo(() => {
     if (barcodeLayout === 'A4_24') return 'grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3';
     if (barcodeLayout === 'A4_40') return 'grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4';
-    if (barcodeLayout === 'THERMAL_ROLL') return 'grid-cols-1 sm:grid-cols-2 max-w-xl mx-auto';
-    return 'grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4';
+    if (barcodeLayout === 'THERMAL_38_25') return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 max-w-2xl mx-auto';
+    if (barcodeLayout === 'THERMAL_80MM') return 'grid-cols-1 max-w-xs mx-auto';
+    if (barcodeLayout === 'THERMAL_58MM') return 'grid-cols-1 max-w-[260px] mx-auto';
+    return 'grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 max-w-2xl mx-auto';
   }, [barcodeLayout]);
+
+  const dynamicPrintStyle = useMemo(() => {
+    if (printMode === 'CASH_TALLY') {
+      return `
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 2mm 3mm;
+          }
+          html, body {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          #root, #root > div, main {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+          nav, header, aside, .print\\:hidden, .barcode-print-sheet {
+            display: none !important;
+          }
+          #thermal-cash-tally-slip {
+            display: block !important;
+            width: 100% !important;
+            max-width: 74mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 0 !important;
+            color: #000000 !important;
+          }
+        }
+      `;
+    }
+
+    let pageRules = '';
+    let sheetRules = '';
+    let cardRules = '';
+
+    if (barcodeLayout === 'THERMAL_58MM') {
+      pageRules = `
+        @page {
+          size: 58mm auto;
+          margin: 0;
+        }
+      `;
+      sheetRules = `
+        .barcode-print-sheet {
+          display: block !important;
+          width: 48mm !important;
+          max-width: 48mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: none !important;
+        }
+      `;
+      cardRules = `
+        .barcode-sticker-card {
+          width: 48mm !important;
+          max-width: 48mm !important;
+          height: auto !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          padding: 1mm 1mm 1.5mm 1mm !important;
+          margin: 0 0 1.5mm 0 !important;
+          border-bottom: 1px dashed #000000 !important;
+          border-top: none !important;
+          border-left: none !important;
+          border-right: none !important;
+          border-radius: 0 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-after: auto !important;
+          break-after: auto !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          background-color: #ffffff !important;
+        }
+        .barcode-sticker-card .sticker-store {
+          font-size: 7.5pt !important;
+          line-height: 1.1 !important;
+          font-weight: 800 !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0 0 0.8mm 0 !important;
+          max-width: 46mm !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+        .barcode-sticker-card .sticker-product {
+          font-size: 7pt !important;
+          line-height: 1.1 !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0 0 0.2mm 0 !important;
+          max-width: 46mm !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg {
+          width: 100% !important;
+          height: 8.5mm !important;
+          max-height: 8.5mm !important;
+          margin: 0.2mm 0 !important;
+          padding: 0 1mm !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg svg {
+          width: 95% !important;
+          max-width: 44mm !important;
+          height: 8.5mm !important;
+          max-height: 8.5mm !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg img {
+          width: 12mm !important;
+          height: 12mm !important;
+        }
+        .barcode-sticker-card .sticker-code {
+          font-size: 6pt !important;
+          line-height: 1 !important;
+          font-weight: 800 !important;
+          font-family: monospace !important;
+          letter-spacing: 0.5px !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0.3mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-price {
+          font-size: 7pt !important;
+          line-height: 1.1 !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0.3mm 0 0 0 !important;
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 1.5mm !important;
+        }
+      `;
+    } else if (barcodeLayout === 'THERMAL_80MM') {
+      pageRules = `
+        @page {
+          size: 80mm auto;
+          margin: 0;
+        }
+      `;
+      sheetRules = `
+        .barcode-print-sheet {
+          display: block !important;
+          width: 72mm !important;
+          max-width: 72mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: none !important;
+        }
+      `;
+      cardRules = `
+        .barcode-sticker-card {
+          width: 72mm !important;
+          max-width: 72mm !important;
+          height: auto !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          padding: 1.5mm 2mm !important;
+          margin: 0 0 2mm 0 !important;
+          border-bottom: 1px dashed #000000 !important;
+          border-top: none !important;
+          border-left: none !important;
+          border-right: none !important;
+          border-radius: 0 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-after: auto !important;
+          break-after: auto !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          background-color: #ffffff !important;
+        }
+        .barcode-sticker-card .sticker-store {
+          font-size: 7.5pt !important;
+          font-weight: 800 !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0 0 0.4mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-product {
+          font-size: 8.5pt !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0 0 0.5mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg {
+          width: 100% !important;
+          height: 10mm !important;
+          max-height: 10mm !important;
+          margin: 0.3mm 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg svg {
+          width: 90% !important;
+          max-width: 66mm !important;
+          height: 10mm !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg img {
+          width: 16mm !important;
+          height: 16mm !important;
+        }
+        .barcode-sticker-card .sticker-code {
+          font-size: 7pt !important;
+          font-weight: 800 !important;
+          font-family: monospace !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0.3mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-price {
+          font-size: 8pt !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          text-align: center !important;
+          margin: 0.3mm 0 0 0 !important;
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 2mm !important;
+        }
+      `;
+    } else if (barcodeLayout === 'THERMAL_50_25' || barcodeLayout === 'THERMAL_ROLL') {
+      pageRules = `
+        @page {
+          size: 50mm 25mm;
+          margin: 0;
+        }
+      `;
+      sheetRules = `
+        .barcode-print-sheet {
+          display: block !important;
+          width: 50mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          border: none !important;
+        }
+      `;
+      cardRules = `
+        .barcode-sticker-card {
+          width: 50mm !important;
+          height: 25mm !important;
+          min-height: 25mm !important;
+          max-height: 25mm !important;
+          padding: 0.8mm 1.5mm !important;
+          margin: 0 !important;
+          border: none !important;
+          border-radius: 0 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-after: always !important;
+          break-after: page !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          background-color: #ffffff !important;
+        }
+        .barcode-sticker-card .sticker-store {
+          font-size: 6pt !important;
+          line-height: 1 !important;
+          font-weight: 800 !important;
+          color: #000000 !important;
+          margin: 0 0 0.3mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-product {
+          font-size: 7pt !important;
+          line-height: 1 !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          margin: 0 0 0.3mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg {
+          height: 8.5mm !important;
+          max-height: 8.5mm !important;
+          margin: 0.2mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-code {
+          font-size: 6pt !important;
+          line-height: 1 !important;
+          font-weight: 800 !important;
+          color: #000000 !important;
+          margin: 0.3mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-price {
+          font-size: 7pt !important;
+          line-height: 1 !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          margin: 0.3mm 0 0 0 !important;
+        }
+      `;
+    } else if (barcodeLayout === 'THERMAL_38_25') {
+      pageRules = `
+        @page {
+          size: 38mm 25mm;
+          margin: 0;
+        }
+      `;
+      sheetRules = `
+        .barcode-print-sheet {
+          display: block !important;
+          width: 38mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          border: none !important;
+        }
+      `;
+      cardRules = `
+        .barcode-sticker-card {
+          width: 38mm !important;
+          height: 25mm !important;
+          min-height: 25mm !important;
+          max-height: 25mm !important;
+          padding: 0.6mm 1mm !important;
+          margin: 0 !important;
+          border: none !important;
+          border-radius: 0 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-after: always !important;
+          break-after: page !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          background-color: #ffffff !important;
+        }
+        .barcode-sticker-card .sticker-store {
+          font-size: 5.5pt !important;
+          line-height: 1 !important;
+          font-weight: 800 !important;
+          color: #000000 !important;
+          margin: 0 0 0.2mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-product {
+          font-size: 6.5pt !important;
+          line-height: 1 !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          margin: 0 0 0.3mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-barcode-svg {
+          height: 8mm !important;
+          max-height: 8mm !important;
+          margin: 0.2mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-code {
+          font-size: 5.5pt !important;
+          line-height: 1 !important;
+          font-weight: 800 !important;
+          color: #000000 !important;
+          margin: 0.2mm 0 !important;
+        }
+        .barcode-sticker-card .sticker-price {
+          font-size: 6.5pt !important;
+          line-height: 1 !important;
+          font-weight: 900 !important;
+          color: #000000 !important;
+          margin: 0.2mm 0 0 0 !important;
+        }
+      `;
+    } else if (barcodeLayout === 'A4_40') {
+      pageRules = `
+        @page {
+          size: A4 portrait;
+          margin: 4mm 5mm;
+        }
+      `;
+      sheetRules = `
+        .barcode-print-sheet {
+          display: grid !important;
+          width: 100% !important;
+          grid-template-columns: repeat(4, 1fr) !important;
+          gap: 1.5mm 2mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+        }
+      `;
+      cardRules = `
+        .barcode-sticker-card {
+          height: 26mm !important;
+          min-height: 26mm !important;
+          max-height: 26mm !important;
+          padding: 1mm 2mm !important;
+          border: 1px dashed #cbd5e1 !important;
+          border-radius: 4px !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          background-color: #ffffff !important;
+        }
+      `;
+    } else {
+      pageRules = `
+        @page {
+          size: A4 portrait;
+          margin: 4mm 5mm;
+        }
+      `;
+      sheetRules = `
+        .barcode-print-sheet {
+          display: grid !important;
+          width: 100% !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+          gap: 2mm 3mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+        }
+      `;
+      cardRules = `
+        .barcode-sticker-card {
+          height: 33mm !important;
+          min-height: 33mm !important;
+          max-height: 33mm !important;
+          padding: 1.5mm 2.5mm !important;
+          border: 1px dashed #cbd5e1 !important;
+          border-radius: 4px !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          background-color: #ffffff !important;
+        }
+      `;
+    }
+
+    return `
+      @media print {
+        ${pageRules}
+        html, body {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        #root, #root > div, main {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          height: auto !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
+        nav, header, aside, .print\\:hidden, #thermal-cash-tally-slip {
+          display: none !important;
+        }
+        ${sheetRules}
+        ${cardRules}
+      }
+    `;
+  }, [printMode, barcodeLayout]);
 
   const tabs = [
     { id: 'BARCODE', label: 'Barcode Label Studio', icon: Barcode },
@@ -473,12 +1179,33 @@ export default function ExtraTools() {
 
           <div className="flex items-center gap-2 shrink-0">
             {activeTab === 'BARCODE' && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleDownloadImage}
+                  disabled={downloadingImage || !selectedItem}
+                  className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 active:scale-95 rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                  title="Download single barcode label as high-resolution PNG image"
+                >
+                  <Download size={14} className={downloadingImage ? 'animate-bounce text-emerald-600' : 'text-slate-500'} />
+                  <span className="whitespace-nowrap">{downloadingImage ? 'Downloading...' : 'Download as Image'}</span>
+                </button>
+                <button
+                  onClick={handlePrintLabels}
+                  className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Printer size={14} strokeWidth={2.5} />
+                  <span className="whitespace-nowrap">Print Labels</span>
+                </button>
+              </>
+            )}
+            {activeTab === 'CASH_TALLY' && (
               <button
-                onClick={handlePrintLabels}
+                onClick={handlePrintCashSlip}
                 className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 <Printer size={14} strokeWidth={2.5} />
-                <span className="whitespace-nowrap">Print Labels</span>
+                <span className="whitespace-nowrap">Print Cash Slip</span>
               </button>
             )}
             <button
@@ -550,13 +1277,17 @@ export default function ExtraTools() {
                   onChange={(val) => {
                     setBarcodeLayout(val);
                     if (val === 'A4_24') setLabelQty(24);
-                    if (val === 'A4_40') setLabelQty(40);
-                    if (val === 'THERMAL_ROLL') setLabelQty(10);
+                    else if (val === 'A4_40') setLabelQty(40);
+                    else if (val === 'THERMAL_58MM') setLabelQty(1);
+                    else setLabelQty(5);
                   }}
                   options={[
-                    { value: 'A4_24', label: 'A4 — 24 Labels (3x8 Grid)' },
-                    { value: 'A4_40', label: 'A4 — 40 Labels (4x10 Grid)' },
-                    { value: 'THERMAL_ROLL', label: 'Thermal Roll (50x25mm)' }
+                    { value: 'THERMAL_58MM', label: 'Everycom EC-58 / 58mm Thermal Roll (Continuous / 48mm)' },
+                    { value: 'THERMAL_80MM', label: 'POS Thermal — 80mm Continuous Paper' },
+                    { value: 'THERMAL_50_25', label: 'Thermal Roll — 50×25mm (Standard 2×1 in)' },
+                    { value: 'THERMAL_38_25', label: 'Thermal Roll — 38×25mm (Jewelry / Small)' },
+                    { value: 'A4_24', label: 'A4 Sheet — 24 Labels (3×8 Grid)' },
+                    { value: 'A4_40', label: 'A4 Sheet — 40 Labels (4×10 Grid)' }
                   ]}
                 />
               </div>
@@ -605,109 +1336,7 @@ export default function ExtraTools() {
             </div>
           </div>
 
-      <style>{`
-        @media print {
-          @page {
-            margin: 4mm 5mm;
-            size: A4 portrait;
-          }
-          body {
-            background-color: #ffffff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          nav, header, aside, .print\\:hidden {
-            display: none !important;
-          }
-          .barcode-print-sheet {
-            display: grid !important;
-            width: 100% !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-          }
-          .barcode-print-sheet.sheet-A4_24 {
-            grid-template-columns: repeat(3, 1fr) !important;
-            gap: 2mm 3mm !important;
-          }
-          .barcode-print-sheet.sheet-A4_24 .barcode-sticker-card {
-            height: 33mm !important;
-            min-height: 33mm !important;
-            max-height: 33mm !important;
-            padding: 1.5mm 2.5mm !important;
-          }
-          .barcode-print-sheet.sheet-A4_40 {
-            grid-template-columns: repeat(4, 1fr) !important;
-            gap: 1.5mm 2mm !important;
-          }
-          .barcode-print-sheet.sheet-A4_40 .barcode-sticker-card {
-            height: 26mm !important;
-            min-height: 26mm !important;
-            max-height: 26mm !important;
-            padding: 1mm 2mm !important;
-          }
-          .barcode-print-sheet.sheet-THERMAL_ROLL {
-            grid-template-columns: 1fr !important;
-            gap: 0 !important;
-          }
-          .barcode-print-sheet.sheet-THERMAL_ROLL .barcode-sticker-card {
-            height: 24mm !important;
-            min-height: 24mm !important;
-            max-height: 24mm !important;
-            page-break-after: always !important;
-            break-after: always !important;
-          }
-          .barcode-sticker-card {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            border: 1px dashed #cbd5e1 !important;
-            border-radius: 4px !important;
-            box-shadow: none !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            box-sizing: border-box !important;
-            overflow: hidden !important;
-          }
-          .barcode-sticker-card .sticker-store {
-            font-size: 7pt !important;
-            line-height: 1 !important;
-            font-weight: 800 !important;
-            color: #475569 !important;
-            margin: 0 !important;
-          }
-          .barcode-sticker-card .sticker-product {
-            font-size: 7.5pt !important;
-            line-height: 1.1 !important;
-            font-weight: 900 !important;
-            color: #0f172a !important;
-            margin: 0 !important;
-          }
-          .barcode-sticker-card .sticker-barcode-svg {
-            height: 12mm !important;
-            max-height: 12mm !important;
-            margin: 0.5mm 0 !important;
-          }
-          .barcode-sticker-card .sticker-code {
-            font-size: 7pt !important;
-            line-height: 1 !important;
-            font-weight: 700 !important;
-            color: #334155 !important;
-          }
-          .barcode-sticker-card .sticker-price {
-            font-size: 7.5pt !important;
-            line-height: 1.1 !important;
-            font-weight: 800 !important;
-            color: #0f172a !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            justify-content: center !important;
-            gap: 12px !important;
-          }
-        }
-      `}</style>
+      <style>{dynamicPrintStyle}</style>
 
       {selectedItem && (
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-6 shadow-xs print:p-0 print:border-none print:shadow-none">
@@ -717,7 +1346,15 @@ export default function ExtraTools() {
               <p className="text-[10px] sm:text-[11px] text-slate-400">High-contrast vector Code 128 barcodes compatible with optical scanners</p>
             </div>
             <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl w-fit">
-              Format: {barcodeLayout === 'A4_24' ? 'A4 3x8' : barcodeLayout === 'A4_40' ? 'A4 4x10' : 'Thermal 50x25mm'}
+              Format: {
+                barcodeLayout === 'THERMAL_58MM' ? 'Everycom EC-58 (58mm Roll)' :
+                barcodeLayout === 'THERMAL_80MM' ? 'POS 80mm Roll' :
+                barcodeLayout === 'THERMAL_50_25' ? 'Thermal 50×25mm' :
+                barcodeLayout === 'THERMAL_38_25' ? 'Thermal 38×25mm' :
+                barcodeLayout === 'A4_24' ? 'A4 3×8' :
+                barcodeLayout === 'A4_40' ? 'A4 4×10' :
+                'Thermal 58mm'
+              }
             </span>
           </div>
 
@@ -725,25 +1362,27 @@ export default function ExtraTools() {
             {Array.from({ length: labelQty }).map((_, idx) => (
               <div
                 key={idx}
-                className="border border-slate-300 rounded-xl p-3 text-center bg-white shadow-2xs flex flex-col items-center justify-between min-h-[125px] hover:border-emerald-400 transition-colors barcode-sticker-card"
+                ref={idx === 0 ? labelRef : undefined}
+                className="border border-slate-300 rounded-2xl p-4 text-center bg-white shadow-2xs flex flex-col items-center justify-between min-h-[145px] hover:border-emerald-400 transition-colors barcode-sticker-card"
               >
                 {barcodeOptions.showStoreName && (
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider truncate w-full sticker-store">
+                  <span className="text-xs sm:text-[13px] font-black text-slate-600 uppercase tracking-wider truncate w-full sticker-store leading-tight mb-2">
                     {company?.name || 'MC Electronics'}
                   </span>
                 )}
 
                 {barcodeOptions.showProductName && (
-                  <span className="text-xs font-black text-slate-900 line-clamp-1 w-full mt-0.5 leading-tight sticker-product">
+                  <span className="text-xs sm:text-[13px] font-black text-slate-900 line-clamp-1 w-full sticker-product leading-tight mb-0.5">
                     {selectedItem.name}
                   </span>
                 )}
 
-                <div className="w-full my-1 px-2 flex items-center justify-center sticker-barcode-svg">
+                <div className="w-full h-10 flex items-center justify-center sticker-barcode-svg px-2 my-1 overflow-hidden">
                   {codeType === 'QR_CODE' ? (
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(selectedItem.barcode || `HK-${selectedItem.id.toString().padStart(6, '0')}`)}`}
                       alt="QR Code"
+                      crossOrigin="anonymous"
                       className="w-12 h-12 sm:w-13 sm:h-13 object-contain mx-auto print:w-11 print:h-11"
                     />
                   ) : (
@@ -756,12 +1395,12 @@ export default function ExtraTools() {
                 </div>
 
                 {barcodeOptions.showBarcodeNumber && (
-                  <span className="text-[10px] font-mono font-bold text-slate-600 tracking-wider sticker-code">
+                  <span className="text-[10px] font-mono font-bold text-slate-600 tracking-wider sticker-code leading-tight mt-0.5 mb-1">
                     {selectedItem.barcode || `HK-${selectedItem.id.toString().padStart(6, '0')}`}
                   </span>
                 )}
 
-                <div className="flex items-center justify-center gap-2 mt-1 w-full pt-1 border-t border-slate-100 print:border-none print:mt-0 print:pt-0">
+                <div className="flex items-center justify-center gap-2 w-full pt-1.5 border-t border-slate-100 print:border-none print:mt-0 print:pt-0">
                   {barcodeOptions.showPrice && (
                     <div className="flex items-center justify-center gap-4 sm:gap-5 flex-wrap text-xs font-black text-slate-900 sticker-price">
                       {selectedItem.mrp ? (
@@ -1059,14 +1698,22 @@ export default function ExtraTools() {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100">
+            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={handlePrintCashSlip}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-xs"
+              >
+                <Printer size={14} />
+                <span>Print Thermal Slip (80mm)</span>
+              </button>
               <button
                 type="button"
                 onClick={handleCopyCashSummary}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-900 hover:bg-black active:scale-98 text-white text-xs font-bold rounded-lg transition-all cursor-pointer"
               >
                 {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                <span>{copied ? 'Summary Copied to Clipboard!' : 'Copy Closing Note for WhatsApp / Log'}</span>
+                <span>{copied ? 'Summary Copied to Clipboard!' : 'Copy Closing Note'}</span>
               </button>
             </div>
           </div>
@@ -1194,6 +1841,78 @@ export default function ExtraTools() {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {printMode === 'CASH_TALLY' && (
+        <div id="thermal-cash-tally-slip" className="hidden print:block font-mono text-black bg-white">
+          <div className="text-center pb-2 border-b border-black">
+            <h2 className="text-sm font-black uppercase tracking-tight">{company?.name || 'MC Electronics'}</h2>
+            {company?.address && <p className="text-[10px] leading-tight mt-0.5">{company.address}</p>}
+            {company?.phone && <p className="text-[10px] mt-0.5">Ph: {company.phone}</p>}
+            {company?.gst_number && <p className="text-[10px] font-bold mt-0.5">GSTIN: {company.gst_number}</p>}
+          </div>
+
+          <div className="py-2 text-center border-b border-black">
+            <p className="text-xs font-black tracking-wider uppercase">Cash Drawer Closing Report</p>
+            <div className="flex justify-between text-[10px] mt-1 px-1 font-semibold">
+              <span>Date: {new Date().toLocaleDateString('en-IN')}</span>
+              <span>Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+
+          <div className="py-2 border-b border-black">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-dashed border-black text-[10px] uppercase font-bold">
+                  <th className="text-left pb-1">Denom</th>
+                  <th className="text-center pb-1">Count</th>
+                  <th className="text-right pb-1">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dotted divide-black/40">
+                {Object.entries(denominations)
+                  .filter(([_, count]) => count > 0)
+                  .map(([denom, count]) => (
+                    <tr key={denom} className="text-xs">
+                      <td className="py-1 text-left font-bold">₹{denom}</td>
+                      <td className="py-1 text-center font-medium">x {count}</td>
+                      <td className="py-1 text-right font-black">₹{(Number(denom) * count).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            {totalNotesCount === 0 && (
+              <p className="text-center text-[10px] py-2 text-black/70">No denomination counts recorded.</p>
+            )}
+          </div>
+
+          <div className="py-2 border-b-2 border-black space-y-1">
+            <div className="flex justify-between text-xs font-black">
+              <span>TOTAL DRAWER CASH:</span>
+              <span className="text-sm">₹{totalCashTally.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span>Total Units Counted:</span>
+              <span>{totalNotesCount} notes/coins</span>
+            </div>
+          </div>
+
+          <div className="pt-6 pb-2 space-y-6 text-[10px]">
+            <div className="flex justify-between">
+              <div className="text-left">
+                <p>____________________</p>
+                <p className="font-bold mt-1">Cashier Signature</p>
+              </div>
+              <div className="text-right">
+                <p>____________________</p>
+                <p className="font-bold mt-1">Manager / Owner</p>
+              </div>
+            </div>
+            <p className="text-center text-[9px] uppercase tracking-wider text-black/60 pt-1">
+              Generated via HisabKhata POS
+            </p>
           </div>
         </div>
       )}
